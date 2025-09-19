@@ -1,41 +1,50 @@
 package com.senai.conta_bancaria_spring.domain.entity;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.DiscriminatorValue;
 
-import lombok.Getter;
-import lombok.Setter;
+import jakarta.persistence.Entity;
+import lombok.*;
+import lombok.experimental.SuperBuilder;
 
+import java.math.BigDecimal;
 
 
 @DiscriminatorValue("Corrente") // Valor que identifica esta classe na coluna 'tipo_conta'
-@Getter
-@Setter
-public class ContaCorrente extends Conta{
+@Data
+@SuperBuilder
+@EqualsAndHashCode(callSuper = true)
+@Entity
+public class ContaCorrente extends Conta {
 
+    @Column(nullable = false)
     private Long limite;
-    private Double taxa;
 
-    public ContaCorrente(Long numero, Double saldo, Long limite, Double taxa) {
+    @Column(nullable = false)
+    private BigDecimal taxa;
+
+    public ContaCorrente(Long numero, BigDecimal saldo, Long limite, BigDecimal taxa) {
         super(numero, saldo);
         this.limite = limite;
         this.taxa = taxa;
     }
 
     @Override
-    public void sacar(Double valor) {
-        if (valor <= 0) {
+    public void sacar(BigDecimal valor) {
+        if (valor.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("O valor do saque deve ser maior que R$0,00.");
         }
-        double saldoDisponivel = this.getSaldo() + this.limite;
-        if (valor > saldoDisponivel) {
+        BigDecimal saldoDisponivel = this.getSaldo().add(BigDecimal.valueOf(this.limite));
+
+        if (valor.compareTo(saldoDisponivel) > 0) {
             throw new IllegalStateException("Saldo insuficiente, mesmo com o limite.");
         }
 
-        double valorComTaxa = valor + (valor * this.taxa);
-        if (valorComTaxa > saldoDisponivel) {
+        BigDecimal valorComTaxa = valor.add(valor.multiply(this.taxa));
+        if (valorComTaxa.compareTo(saldoDisponivel) > 0) {
             throw new IllegalStateException("Saldo insuficiente para cobrir o saque mais a taxa.");
         }
 
-        this.setSaldo(this.getSaldo() - valorComTaxa);
+        this.setSaldo(this.getSaldo().subtract(valorComTaxa));
     }
 }

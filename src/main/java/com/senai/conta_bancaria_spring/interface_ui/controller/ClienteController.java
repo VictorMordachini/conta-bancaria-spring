@@ -1,8 +1,9 @@
-package com.senai.conta_bancaria_spring.interface_ui;
+package com.senai.conta_bancaria_spring.interface_ui.controller;
 
 import com.senai.conta_bancaria_spring.application.dto.ClienteRequestDTO;
 import com.senai.conta_bancaria_spring.application.dto.ClienteResponseDTO;
 import com.senai.conta_bancaria_spring.application.service.ClienteService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,7 +20,7 @@ public class ClienteController {
     }
 
     @PostMapping
-    public ResponseEntity<ClienteResponseDTO> criarCliente(@RequestBody ClienteRequestDTO clienteDTO) {
+    public ResponseEntity<ClienteResponseDTO> criarCliente(@Valid @RequestBody ClienteRequestDTO clienteDTO) {
         ClienteResponseDTO novoCliente = clienteService.criarCliente(clienteDTO);
         return new ResponseEntity<>(novoCliente, HttpStatus.CREATED);
     }

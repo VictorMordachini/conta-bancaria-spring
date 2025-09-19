@@ -23,7 +23,6 @@ public class ClienteService {
         this.clienteRepository = clienteRepository;
     }
 
-    @Transactional
     public ClienteResponseDTO criarCliente(ClienteRequestDTO dto) {
         if (clienteRepository.findByCpf(dto.getCpf()).isPresent()) {
             throw new IllegalArgumentException("CPF já cadastrado.");

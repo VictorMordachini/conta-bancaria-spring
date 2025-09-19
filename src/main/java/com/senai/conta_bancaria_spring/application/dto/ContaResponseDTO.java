@@ -7,17 +7,19 @@ import com.senai.conta_bancaria_spring.domain.entity.ContaPoupanca;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
+
 @Getter
 @Setter
 public class ContaResponseDTO {
     private Long numero;
-    private Double saldo;
+    private BigDecimal saldo;
     private String tipoConta;
 
     // Campos específicos que podem ser nulos
     private Long limite;
-    private Double taxa;
-    private Double rendimento;
+    private BigDecimal taxa;
+    private BigDecimal rendimento;
 
     // Método de fábrica para converter a entidade em DTO
     public static ContaResponseDTO fromEntity(Conta conta) {
