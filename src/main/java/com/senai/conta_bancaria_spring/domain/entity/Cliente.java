@@ -26,7 +26,7 @@ public class Cliente {
     private List<Conta> contas = new ArrayList<>();
 
     @Column(nullable = false)
-    private Boolean ativo;
+    private Boolean ativo = true;
 
     public void adicionarConta(Conta conta) {
         this.contas.add(conta);

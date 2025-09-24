@@ -1,12 +1,14 @@
 package com.senai.conta_bancaria_spring.interface_ui.controller;
 
 import com.senai.conta_bancaria_spring.application.dto.OperacaoRequestDTO;
+import com.senai.conta_bancaria_spring.application.dto.TransacaoResponseDTO;
 import com.senai.conta_bancaria_spring.application.dto.TransferenciaRequestDTO;
 import com.senai.conta_bancaria_spring.domain.service.ContaServiceDomain;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -35,6 +37,13 @@ public class ContaController {
     public ResponseEntity<Map<String, String>> transferir(@PathVariable Long numeroContaOrigem, @Valid @RequestBody TransferenciaRequestDTO dto) {
         contaService.transferir(numeroContaOrigem, dto.getNumeroContaDestino(), dto.getValor());
         return ResponseEntity.ok(Map.of("mensagem", "Transferência realizada com sucesso."));
+    }
+
+    // ENDPOINT PARA O EXTRATO
+    @GetMapping("/{numeroConta}/extrato")
+    public ResponseEntity<List<TransacaoResponseDTO>> buscarExtrato(@PathVariable Long numeroConta) {
+        List<TransacaoResponseDTO> extrato = contaService.buscarExtratoPorNumeroConta(numeroConta);
+        return ResponseEntity.ok(extrato);
     }
 
 
