@@ -2,28 +2,23 @@ package com.senai.conta_bancaria_spring.domain.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.DiscriminatorValue;
-
 import jakarta.persistence.Entity;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.*;
 import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
 
-@DiscriminatorValue("Poupanca")
 @Entity
+@DiscriminatorValue("Poupanca")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @SuperBuilder
-@Data
 @EqualsAndHashCode(callSuper = true)
 public class ContaPoupanca extends Conta {
 
-    @Column(nullable = false)
     private BigDecimal rendimento;
-
-    public ContaPoupanca(Long numero, BigDecimal saldo, BigDecimal rendimento) {
-        super(numero, saldo);
-        this.rendimento = rendimento;
-    }
 
     @Override
     public void sacar(BigDecimal valor) {

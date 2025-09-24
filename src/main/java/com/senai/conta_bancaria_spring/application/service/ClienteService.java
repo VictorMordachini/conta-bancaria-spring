@@ -24,6 +24,7 @@ public class ClienteService {
         this.transacaoRepository = transacaoRepository;
     }
 
+    @Transactional
     public ClienteResponseDTO criarCliente(ClienteRequestDTO dto) {
         if (clienteRepository.findByCpf(dto.getCpf()).isPresent()) {
             throw new IllegalArgumentException("CPF já cadastrado.");
@@ -34,29 +35,86 @@ public class ClienteService {
         cliente.setCpf(dto.getCpf());
 
         Conta novaConta;
-        Long numeroConta = (long) (265 + new Random().nextInt(90000)); // Gera um número de conta aleatório
+        long numeroConta = 100000L + new Random().nextInt(900000);
 
         if ("Corrente".equalsIgnoreCase(dto.getTipoConta())) {
-            novaConta = new ContaCorrente(numeroConta, dto.getSaldoInicial(), dto.getLimite(), dto.getTaxa());
-        } else if ("Poupanca".equalsIgnoreCase(dto.getTipoConta())) {
-            novaConta = new ContaPoupanca(numeroConta, dto.getSaldoInicial(), dto.getRendimento());
+            novaConta = ContaCorrente.builder()
+                    .numero(numeroConta)
+                    .saldo(dto.getSaldoInicial())
+                    .limite(dto.getLimite())
+                    .taxa(dto.getTaxa())
+                    .ativa(true)
+                    .build();
         } else {
-            throw new IllegalArgumentException("Tipo de conta inválido. Use 'Corrente' ou 'Poupanca'.");
+            novaConta = ContaPoupanca.builder()
+                    .numero(numeroConta)
+                    .saldo(dto.getSaldoInicial())
+                    .rendimento(dto.getRendimento())
+                    .ativa(true)
+                    .build();
         }
 
         cliente.adicionarConta(novaConta);
         Cliente clienteSalvo = clienteRepository.save(cliente);
 
-        // REGISTRAR TRANSAÇÃO DE ABERTURA DE CONTA / DEPÓSITO INICIAL
         if (dto.getSaldoInicial().compareTo(BigDecimal.ZERO) > 0) {
             Transacao transacaoInicial = new Transacao();
-            // Pega a referência da conta que acabou de ser salva junto com o cliente
-            transacaoInicial.setConta(clienteSalvo.getContas().getFirst());
+            transacaoInicial.setConta(clienteSalvo.getContas().get(0));
             transacaoInicial.setTipo(TipoTransacao.ABERTURA_CONTA);
             transacaoInicial.setValor(dto.getSaldoInicial());
             transacaoRepository.save(transacaoInicial);
         }
+
         return ClienteResponseDTO.fromEntity(clienteSalvo);
+    }
+
+    @Transactional
+    public ContaResponseDTO abrirNovaConta(String clienteId, ContaRequestDTO dto) {
+            Cliente cliente = clienteRepository.findById(clienteId)
+                    .orElseThrow(() -> new RuntimeException("Cliente não encontrado."));
+
+            boolean contaExistente = cliente.getContas().stream()
+                    .anyMatch(conta -> conta.getClass().getSimpleName().equalsIgnoreCase(dto.getTipoConta()));
+
+            if (contaExistente) {
+                throw new IllegalArgumentException("O cliente já possui uma conta do tipo " + dto.getTipoConta());
+            }
+
+            Conta novaConta;
+            long numeroConta = 100000L + new Random().nextInt(900000);
+
+            if ("Corrente".equalsIgnoreCase(dto.getTipoConta())) {
+                novaConta = ContaCorrente.builder()
+                        .numero(numeroConta)
+                        .saldo(dto.getSaldoInicial())
+                        .limite(dto.getLimite())
+                        .taxa(dto.getTaxa())
+                        .ativa(true)
+                        .build();
+            } else {
+                novaConta = ContaPoupanca.builder()
+                        .numero(numeroConta)
+                        .saldo(dto.getSaldoInicial())
+                        .rendimento(dto.getRendimento())
+                        .ativa(true)
+                        .build();
+            }
+
+            cliente.adicionarConta(novaConta);
+
+            Cliente clienteSalvo = clienteRepository.save(cliente);
+
+            Conta contaSalva = clienteSalvo.getContas().getLast();
+
+            if (dto.getSaldoInicial().compareTo(BigDecimal.ZERO) > 0) {
+                Transacao transacaoInicial = new Transacao();
+                transacaoInicial.setConta(contaSalva);
+                transacaoInicial.setTipo(TipoTransacao.ABERTURA_CONTA);
+                transacaoInicial.setValor(dto.getSaldoInicial());
+                transacaoRepository.save(transacaoInicial);
+            }
+
+            return ContaResponseDTO.fromEntity(contaSalva);
     }
 
     public List<ClienteResponseDTO> listarClientes() {
@@ -70,68 +128,18 @@ public class ClienteService {
         return ClienteResponseDTO.fromEntity(cliente);
     }
 
+    public void desativarCliente(String id) {
+        Cliente cliente = clienteRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Cliente não encontrado."));
+        cliente.setAtivo(false);
+        clienteRepository.save(cliente);
+    }
+
     public ClienteResponseDTO atualizarCliente(String id, ClienteUpdateRequestDTO dto) {
         Cliente cliente = clienteRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Cliente não encontrado."));
-
-        // Atualiza apenas os campos permitidos, com base nos dados do DTO.
         cliente.setNome(dto.getNome());
-
         Cliente clienteAtualizado = clienteRepository.save(cliente);
-
         return ClienteResponseDTO.fromEntity(clienteAtualizado);
-    }
-
-    public void desativarCliente(String id) {
-        // Busca o cliente pelo ID. Se não encontrar, lança exceção.
-        Cliente cliente = clienteRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Cliente não encontrado."));
-
-        // Regra de negócio simples: apenas desativa.
-        cliente.setAtivo(false);
-
-        // Salva a alteração no banco de dados.
-        clienteRepository.save(cliente);
-    }
-
-    public ContaResponseDTO abrirNovaConta(String clienteId, ContaRequestDTO dto) {
-
-        // 1. Busca o cliente ou lança uma exceção se não encontrado.
-        Cliente cliente = clienteRepository.findById(clienteId)
-                .orElseThrow(() -> new RuntimeException("Cliente não encontrado."));
-
-        // 2. Regra de Negócio: Verifica se o cliente já possui uma conta do tipo solicitado.
-        boolean contaExistente = cliente.getContas().stream()
-                .anyMatch(conta -> conta.getClass().getSimpleName().equalsIgnoreCase(dto.getTipoConta()));
-
-        if (contaExistente) {
-            throw new IllegalArgumentException("O cliente já possui uma conta do tipo " + dto.getTipoConta());
-        }
-
-        // 3. Cria a nova entidade Conta com base no DTO.
-        Conta novaConta;
-        long numeroConta = (265 + new Random().nextInt(90000));
-
-        if ("Corrente".equalsIgnoreCase(dto.getTipoConta())) {
-            novaConta = new ContaCorrente(numeroConta, dto.getSaldoInicial(), dto.getLimite(), dto.getTaxa());
-        } else { // Já validamos que só pode ser "Poupanca"
-            novaConta = new ContaPoupanca(numeroConta, dto.getSaldoInicial(), dto.getRendimento());
-        }
-
-        // 4. Associa a nova conta ao cliente e salva. A cascata fará o resto.
-        cliente.adicionarConta(novaConta);
-        clienteRepository.save(cliente);
-
-        // 5. Registra a transação de abertura, se houver saldo inicial.
-        if (dto.getSaldoInicial().compareTo(BigDecimal.ZERO) > 0) {
-            Transacao transacaoInicial = new Transacao();
-            transacaoInicial.setConta(novaConta);
-            transacaoInicial.setTipo(TipoTransacao.ABERTURA_CONTA);
-            transacaoInicial.setValor(dto.getSaldoInicial());
-            transacaoRepository.save(transacaoInicial);
-        }
-
-        // 6. Retorna um DTO da conta que acabou de ser criada.
-        return ContaResponseDTO.fromEntity(novaConta);
     }
 }
