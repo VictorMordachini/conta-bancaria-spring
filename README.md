@@ -18,7 +18,7 @@ API RESTful para simulação de um sistema bancário, desenvolvida com Java e Sp
 
 ## 🛠️ Tecnologias Utilizadas
 
-* **Java 17+**
+* **Java 21+**
 * **Spring Boot 3**
 * **Spring Data JPA / Hibernate**
 * **Banco de Dados em Memória H2**
@@ -30,7 +30,7 @@ API RESTful para simulação de um sistema bancário, desenvolvida com Java e Sp
 ## 🏃‍♀️ Como Rodar a Aplicação
 
 1.  **Pré-requisitos:**
-    * Java JDK 17 ou superior.
+    * Java JDK 21 ou superior.
     * Apache Maven.
 
 2.  **Clone o repositório:**
