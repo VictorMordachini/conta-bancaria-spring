@@ -52,4 +52,7 @@ public abstract class Conta {
         }
         this.saldo = this.saldo.add(valor);
     }
+
+
+    public abstract BigDecimal debitarParaTransferencia(BigDecimal valor);
 }

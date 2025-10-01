@@ -31,8 +31,16 @@ public class ContaPoupanca extends Conta {
         this.setSaldo(this.getSaldo().subtract(valor));
     }
 
+    @Override
+    public BigDecimal debitarParaTransferencia(BigDecimal valor) {
+        this.sacar(valor);
+        return valor;
+    }
+
     public void aplicarRendimento() {
         BigDecimal valorRendimento = this.getSaldo().multiply(this.rendimento);
         this.setSaldo(this.getSaldo().add(valorRendimento));
     }
+
+
 }
