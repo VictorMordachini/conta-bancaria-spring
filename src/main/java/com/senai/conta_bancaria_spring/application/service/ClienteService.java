@@ -1,12 +1,14 @@
 package com.senai.conta_bancaria_spring.application.service;
 
 import com.senai.conta_bancaria_spring.application.dto.*;
+import com.senai.conta_bancaria_spring.config.BancoConfigProperties;
 import com.senai.conta_bancaria_spring.domain.entity.*;
 import com.senai.conta_bancaria_spring.domain.enums.TipoTransacao;
 import com.senai.conta_bancaria_spring.domain.exception.RecursoNaoEncontradoException;
 import com.senai.conta_bancaria_spring.domain.repository.ClienteRepository;
 import com.senai.conta_bancaria_spring.domain.repository.TransacaoRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -19,10 +21,15 @@ import java.util.stream.Collectors;
 public class ClienteService {
     private final ClienteRepository clienteRepository;
     private final TransacaoRepository transacaoRepository;
+    private final BancoConfigProperties bancoConfig;
 
-    public ClienteService(ClienteRepository clienteRepository, TransacaoRepository transacaoRepository) {
+    @Value("${banco.conta-poupanca.rendimento-padrao}") // Injeta o valor da propriedade diretamente neste campo.
+    private BigDecimal rendimentoPadrao;
+
+    public ClienteService(ClienteRepository clienteRepository, TransacaoRepository transacaoRepository, BancoConfigProperties bancoConfigProperties, BancoConfigProperties bancoConfig) {
         this.clienteRepository = clienteRepository;
         this.transacaoRepository = transacaoRepository;
+        this.bancoConfig = bancoConfig;
     }
 
     @Transactional
@@ -53,8 +60,7 @@ public class ClienteService {
 
     @Transactional
     public ContaResponseDTO abrirNovaConta(String clienteId, ContaRequestDTO dto) {
-        Cliente cliente = clienteRepository.findById(clienteId)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Cliente não encontrado com o ID: " + clienteId));
+        Cliente cliente = buscarClientePorIdOuFalhar(clienteId);
 
         boolean contaExistente = cliente.getContas().stream()
                 .anyMatch(conta -> conta.getClass().getSimpleName().equalsIgnoreCase(dto.getTipoConta()));
@@ -89,20 +95,18 @@ public class ClienteService {
     }
 
     public ClienteResponseDTO buscarClientePorId(String id) {
-        Cliente cliente = clienteRepository.findById(id).orElseThrow(() -> new RecursoNaoEncontradoException("Cliente não encontrado com o ID: " + id));
+        Cliente cliente = buscarClientePorIdOuFalhar(id);
         return ClienteResponseDTO.fromEntity(cliente);
     }
 
     public void desativarCliente(String id) {
-        Cliente cliente = clienteRepository.findById(id)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Cliente não encontrado com o ID: " + id));
+        Cliente cliente = buscarClientePorIdOuFalhar(id);
         cliente.setAtivo(false);
         clienteRepository.save(cliente);
     }
 
     public ClienteResponseDTO atualizarCliente(String id, ClienteUpdateRequestDTO dto) {
-        Cliente cliente = clienteRepository.findById(id)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Cliente não encontrado com o ID: " + id));
+        Cliente cliente = buscarClientePorIdOuFalhar(id);
         cliente.setNome(dto.getNome());
         Cliente clienteAtualizado = clienteRepository.save(cliente);
         return ClienteResponseDTO.fromEntity(clienteAtualizado);
@@ -112,20 +116,32 @@ public class ClienteService {
         long numeroConta = 100000L + new Random().nextInt(900000);
 
         if ("Corrente".equalsIgnoreCase(tipoConta)) {
+            // Se o limite do DTO for nulo, usa o padrão. Senão, usa o do DTO.
+            Long limiteFinal = (limite != null) ? limite : bancoConfig.getLimitePadrao();
+            // Se a taxa do DTO for nula, usa a padrão. Senão, usa a do DTO.
+            BigDecimal taxaFinal = (taxa != null) ? taxa : bancoConfig.getTaxaPadrao();
+
             return ContaCorrente.builder()
                     .numero(numeroConta)
                     .saldo(saldoInicial)
-                    .limite(limite)
-                    .taxa(taxa)
+                    .limite(limiteFinal) // Usa o valor final
+                    .taxa(taxaFinal)     // Usa o valor final
                     .ativa(true)
                     .build();
-        } else { // A validação do DTO já garante que será "Poupanca"
+        } else {
+            BigDecimal rendimentoFinal = (rendimento != null) ? rendimento : this.rendimentoPadrao;
+
             return ContaPoupanca.builder()
                     .numero(numeroConta)
                     .saldo(saldoInicial)
-                    .rendimento(rendimento)
+                    .rendimento(rendimentoFinal)
                     .ativa(true)
                     .build();
         }
+    }
+
+    private Cliente buscarClientePorIdOuFalhar(String id) {
+        return clienteRepository.findById(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Cliente não encontrado com o ID: " + id));
     }
 }

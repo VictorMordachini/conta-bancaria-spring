@@ -53,6 +53,25 @@ public abstract class Conta {
         this.saldo = this.saldo.add(valor);
     }
 
+    protected void validarValorDebitoPositivo(BigDecimal valor, String tipoOperacao) {
+        if (valor == null || valor.compareTo(BigDecimal.ZERO) <= 0) {
+            // Usamos String.format para criar uma mensagem de erro mais dinâmica.
+            throw new IllegalArgumentException(String.format("O valor do %s deve ser maior que R$0,00.", tipoOperacao));
+        }
+    }
+
+    protected void validarSaldoSuficiente(BigDecimal valor) {
+        if (valor.compareTo(this.getSaldo()) > 0) {
+            throw new IllegalStateException("Saldo insuficiente.");
+        }
+    }
+
+    protected void validarSaldoComLimiteSuficiente(BigDecimal valor, Long limite) {
+        BigDecimal saldoDisponivel = this.getSaldo().add(BigDecimal.valueOf(limite));
+        if (valor.compareTo(saldoDisponivel) > 0) {
+            throw new IllegalStateException("Saldo insuficiente, mesmo com o limite.");
+        }
+    }
 
     public abstract BigDecimal debitarParaTransferencia(BigDecimal valor);
 }

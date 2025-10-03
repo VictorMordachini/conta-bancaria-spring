@@ -22,12 +22,9 @@ public class ContaPoupanca extends Conta {
 
     @Override
     public void sacar(BigDecimal valor) {
-        if (valor.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("O valor do saque deve ser maior que R$0,00.");
-        }
-        if (valor.compareTo(this.getSaldo()) > 0) {
-            throw new IllegalStateException("Saldo insuficiente.");
-        }
+        validarValorDebitoPositivo(valor, "saque");
+        validarSaldoSuficiente(valor);
+
         this.setSaldo(this.getSaldo().subtract(valor));
     }
 

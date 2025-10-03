@@ -1,5 +1,7 @@
 package com.senai.conta_bancaria_spring.domain.service;
 
+import com.senai.conta_bancaria_spring.application.dto.ContaCorrenteUpdateRequestDTO;
+import com.senai.conta_bancaria_spring.application.dto.ContaResponseDTO;
 import com.senai.conta_bancaria_spring.application.dto.TransacaoResponseDTO;
 import com.senai.conta_bancaria_spring.domain.entity.Conta;
 import com.senai.conta_bancaria_spring.domain.entity.ContaCorrente;
@@ -93,6 +95,23 @@ public class ContaServiceDomain {
         transacao.setValor(valor);
         transacao.setContaDestinoNumero(contaDestinoNumero);
         transacaoRepository.save(transacao);
+    }
+
+    public ContaResponseDTO atualizarParametrosContaCorrente(Long numeroConta, ContaCorrenteUpdateRequestDTO dto) {
+        // 1. Busca a conta
+        Conta conta = buscarPorNumero(numeroConta);
+
+        // 2. Valida se é realmente uma Conta Corrente
+        if (!(conta instanceof ContaCorrente contaCorrente)) {
+            throw new IllegalArgumentException("Apenas contas do tipo Corrente podem ser atualizadas.");
+        }
+
+        // 3. "Diz" para a entidade se atualizar. Não pergunta sobre seus campos.
+        contaCorrente.atualizarParametros(dto);
+
+        // 4. Salva e retorna a conta atualizada
+        Conta contaAtualizada = contaRepository.save(contaCorrente);
+        return ContaResponseDTO.fromEntity(contaAtualizada);
     }
 
 

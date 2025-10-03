@@ -1,8 +1,6 @@
 package com.senai.conta_bancaria_spring.interface_ui.controller;
 
-import com.senai.conta_bancaria_spring.application.dto.OperacaoRequestDTO;
-import com.senai.conta_bancaria_spring.application.dto.TransacaoResponseDTO;
-import com.senai.conta_bancaria_spring.application.dto.TransferenciaRequestDTO;
+import com.senai.conta_bancaria_spring.application.dto.*;
 import com.senai.conta_bancaria_spring.domain.service.ContaServiceDomain;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -44,6 +42,15 @@ public class ContaController {
     public ResponseEntity<List<TransacaoResponseDTO>> buscarExtrato(@PathVariable Long numeroConta) {
         List<TransacaoResponseDTO> extrato = contaService.buscarExtratoPorNumeroConta(numeroConta);
         return ResponseEntity.ok(extrato);
+    }
+
+    @PatchMapping("/corrente/{numeroConta}")
+    public ResponseEntity<ContaResponseDTO> atualizarParametrosContaCorrente(
+            @PathVariable Long numeroConta,
+            @Valid @RequestBody ContaCorrenteUpdateRequestDTO dto) {
+
+        ContaResponseDTO contaAtualizada = contaService.atualizarParametrosContaCorrente(numeroConta, dto);
+        return ResponseEntity.ok(contaAtualizada);
     }
 
 

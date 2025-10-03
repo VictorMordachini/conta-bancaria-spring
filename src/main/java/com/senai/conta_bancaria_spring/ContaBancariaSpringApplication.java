@@ -5,9 +5,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
 public class ContaBancariaSpringApplication {
-
-	public static void main(String[] args) {
-		SpringApplication.run(ContaBancariaSpringApplication.class, args);
-	}
+    public static void main(String[] args) {
+        SpringApplication.run(ContaBancariaSpringApplication.class, args);
+    }
 
 }

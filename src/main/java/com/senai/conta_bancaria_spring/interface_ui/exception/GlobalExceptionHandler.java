@@ -1,5 +1,6 @@
 package com.senai.conta_bancaria_spring.interface_ui.exception;
 
+import com.senai.conta_bancaria_spring.domain.exception.RecursoNaoEncontradoException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -40,10 +41,14 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(RecursoNaoEncontradoException.class)
+    public ResponseEntity<Object> handleRecursoNaoEncontradoException(RecursoNaoEncontradoException ex) {
+        return new ResponseEntity<>(Map.of("erro", ex.getMessage()), HttpStatus.NOT_FOUND);
+    }
+
     // --- O HANDLER MAIS GENÉRICO NO FINAL ---
     @ExceptionHandler(Exception.class) // Trata qualquer outra exceção não capturada pelos métodos acima.
     public ResponseEntity<Object> handleGenericException(Exception ex) {
-        // Em um sistema real, é importante logar a exceção original para depuração.
         return new ResponseEntity<>(Map.of("erro", "Ocorreu um erro interno no servidor."), HttpStatus.INTERNAL_SERVER_ERROR); // Retorna uma mensagem genérica com status 500.
     }
 }

@@ -1,5 +1,6 @@
 package com.senai.conta_bancaria_spring.domain.entity;
 
+import com.senai.conta_bancaria_spring.application.dto.ContaCorrenteUpdateRequestDTO;
 import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
 import lombok.*;
@@ -23,41 +24,31 @@ public class ContaCorrente extends Conta {
 
     @Override
     public void sacar(BigDecimal valor) {
-        if (valor.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("O valor do saque deve ser maior que R$0,00.");
-        }
-
-        BigDecimal saldoDisponivel = this.getSaldo().add(BigDecimal.valueOf(this.limite));
-        if (valor.compareTo(saldoDisponivel) > 0) {
-            throw new IllegalStateException("Saldo insuficiente, mesmo com o limite.");
-        }
+        validarValorDebitoPositivo(valor, "saque");
 
         BigDecimal valorComTaxa = valor.add(valor.multiply(this.taxa));
-        if (valorComTaxa.compareTo(saldoDisponivel) > 0) {
-            throw new IllegalStateException("Saldo insuficiente para cobrir o saque mais a taxa.");
-        }
+        validarSaldoComLimiteSuficiente(valorComTaxa, this.getLimite());
 
         this.setSaldo(this.getSaldo().subtract(valorComTaxa));
     }
 
     @Override
     public BigDecimal debitarParaTransferencia(BigDecimal valor) {
-        if (valor.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("O valor da transferência deve ser maior que R$0,00.");
-        }
+        validarValorDebitoPositivo(valor, "transferência");
 
-        // A lógica de calcular o valor com taxa
         BigDecimal valorComTaxa = valor.add(valor.multiply(this.getTaxa()));
-        BigDecimal saldoDisponivel = this.getSaldo().add(BigDecimal.valueOf(this.getLimite()));
+        validarSaldoComLimiteSuficiente(valorComTaxa, this.getLimite());
 
-        if (valorComTaxa.compareTo(saldoDisponivel) > 0) {
-            throw new IllegalStateException("Saldo insuficiente para cobrir a transferência mais a taxa.");
-        }
-
-        // Debita o valor total (transferência + taxa).
         this.setSaldo(this.getSaldo().subtract(valorComTaxa));
-
-        // Retorna o valor que foi efetivamente debitado.
         return valorComTaxa;
+    }
+
+    public void atualizarParametros(ContaCorrenteUpdateRequestDTO dto) {
+        if (dto.getLimite() != null) {
+            this.setLimite(dto.getLimite());
+        }
+        if (dto.getTaxa() != null) {
+            this.setTaxa(dto.getTaxa());
+        }
     }
 }
