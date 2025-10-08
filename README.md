@@ -35,7 +35,7 @@ API RESTful para simulação de um sistema bancário, desenvolvida com Java e Sp
 
 2.  **Clone o repositório:**
     ```bash
-    git clone [https://github.com/VictorMordachini/api-conta-bancaria-spring.git](https://github.com/VictorMordachini/api-conta-bancaria-spring.git)
+    git clone [https://github.com/victormordachini/api-conta-bancaria-spring.git](https://github.com/victormordachini/api-conta-bancaria-spring.git)
     cd api-conta-bancaria-spring
     ```
 
