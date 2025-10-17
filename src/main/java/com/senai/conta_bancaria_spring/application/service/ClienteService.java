@@ -4,11 +4,13 @@ import com.senai.conta_bancaria_spring.application.dto.*;
 import com.senai.conta_bancaria_spring.config.BancoConfigProperties;
 import com.senai.conta_bancaria_spring.domain.entity.*;
 import com.senai.conta_bancaria_spring.domain.enums.TipoTransacao;
+import com.senai.conta_bancaria_spring.domain.enums.UserRole;
 import com.senai.conta_bancaria_spring.domain.exception.RecursoNaoEncontradoException;
 import com.senai.conta_bancaria_spring.domain.repository.ClienteRepository;
 import com.senai.conta_bancaria_spring.domain.repository.TransacaoRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -22,14 +24,16 @@ public class ClienteService {
     private final ClienteRepository clienteRepository;
     private final TransacaoRepository transacaoRepository;
     private final BancoConfigProperties bancoConfig;
+    private final PasswordEncoder passwordEncoder;
 
     @Value("${banco.conta-poupanca.rendimento-padrao}") // Injeta o valor da propriedade diretamente neste campo.
     private BigDecimal rendimentoPadrao;
 
-    public ClienteService(ClienteRepository clienteRepository, TransacaoRepository transacaoRepository, BancoConfigProperties bancoConfigProperties, BancoConfigProperties bancoConfig) {
+    public ClienteService(ClienteRepository clienteRepository, TransacaoRepository transacaoRepository, BancoConfigProperties bancoConfigProperties, BancoConfigProperties bancoConfig, PasswordEncoder passwordEncoder) {
         this.clienteRepository = clienteRepository;
         this.transacaoRepository = transacaoRepository;
         this.bancoConfig = bancoConfig;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional
@@ -41,6 +45,8 @@ public class ClienteService {
         Cliente cliente = new Cliente();
         cliente.setNome(dto.getNome());
         cliente.setCpf(dto.getCpf());
+        cliente.setSenha(passwordEncoder.encode(dto.getSenha()));
+        cliente.setRole(UserRole.CLIENTE);
 
         Conta novaConta = criarInstanciaDeConta(dto.getTipoConta(), dto.getSaldoInicial(), dto.getLimite(), dto.getTaxa(), dto.getRendimento());
 

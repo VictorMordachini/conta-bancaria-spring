@@ -16,6 +16,10 @@ public class ClienteRequestDTO {
     @Positive(message = "O CPF deve ser um número positivo.")
     private Long cpf;
 
+    @NotBlank(message = "A senha não pode ser vazia.")
+    @Size(min = 6, message = "A senha deve ter no mínimo 6 caracteres.")
+    private String senha;
+
     @NotBlank(message = "O tipo de conta não pode ser vazio.")
     @Pattern(regexp = "^(Corrente|Poupanca)$", flags = Pattern.Flag.CASE_INSENSITIVE, message = "Tipo de conta inválido. Use 'Corrente' ou 'Poupanca'.")
     private String tipoConta; // "CORRENTE" ou "POUPANCA"
