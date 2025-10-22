@@ -3,6 +3,7 @@ package com.senai.conta_bancaria_spring.domain.service;
 import com.senai.conta_bancaria_spring.application.dto.ContaCorrenteUpdateRequestDTO;
 import com.senai.conta_bancaria_spring.application.dto.ContaResponseDTO;
 import com.senai.conta_bancaria_spring.application.dto.TransacaoResponseDTO;
+import com.senai.conta_bancaria_spring.domain.entity.Cliente;
 import com.senai.conta_bancaria_spring.domain.entity.Conta;
 import com.senai.conta_bancaria_spring.domain.entity.ContaCorrente;
 import com.senai.conta_bancaria_spring.domain.entity.Transacao;
@@ -11,6 +12,9 @@ import com.senai.conta_bancaria_spring.domain.exception.RecursoNaoEncontradoExce
 import com.senai.conta_bancaria_spring.domain.repository.ContaRepository;
 import com.senai.conta_bancaria_spring.domain.repository.TransacaoRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -35,6 +39,7 @@ public class ContaServiceDomain {
 
     public void depositar(Long numeroConta, BigDecimal valor) {
         Conta conta = buscarPorNumero(numeroConta);
+        validarProprietarioDaConta(conta);
         conta.depositar(valor);
         contaRepository.save(conta);
 
@@ -44,6 +49,7 @@ public class ContaServiceDomain {
     public void sacar(Long numeroConta, BigDecimal valor) {
         Conta conta = buscarPorNumero(numeroConta);
         //O Java chama o método sacar() da classe concreta (ContaCorrente ou ContaPoupanca).
+        validarProprietarioDaConta(conta);
         conta.sacar(valor);
         contaRepository.save(conta);
 
@@ -57,6 +63,7 @@ public class ContaServiceDomain {
         }
 
         Conta contaOrigem = buscarPorNumero(numeroContaOrigem);
+        validarProprietarioDaConta(contaOrigem);
         Conta contaDestino = buscarPorNumero(numeroContaDestino);
 
         // 1. Delega a lógica de débito para a própria entidade (Polimorfismo!).
@@ -76,7 +83,8 @@ public class ContaServiceDomain {
     // MÉTODO PARA BUSCAR O EXTRATO
     public List<TransacaoResponseDTO> buscarExtratoPorNumeroConta(Long numeroConta) {
         // Primeiro, verifica se a conta existe. Se não, o método buscarPorNumero já lança a exceção.
-        buscarPorNumero(numeroConta);
+        Conta conta = buscarPorNumero(numeroConta);
+        validarProprietarioDaConta(conta);
 
         // Busca a lista de entidades Transacao do banco de dados, já ordenadas.
         List<Transacao> transacoes = transacaoRepository.findByContaNumeroOrderByDataHoraDesc(numeroConta);
@@ -100,6 +108,7 @@ public class ContaServiceDomain {
     public ContaResponseDTO atualizarParametrosContaCorrente(Long numeroConta, ContaCorrenteUpdateRequestDTO dto) {
         // 1. Busca a conta
         Conta conta = buscarPorNumero(numeroConta);
+        validarProprietarioDaConta(conta);
 
         // 2. Valida se é realmente uma Conta Corrente
         if (!(conta instanceof ContaCorrente contaCorrente)) {
@@ -112,6 +121,21 @@ public class ContaServiceDomain {
         // 4. Salva e retorna a conta atualizada
         Conta contaAtualizada = contaRepository.save(contaCorrente);
         return ContaResponseDTO.fromEntity(contaAtualizada);
+    }
+
+    private void validarProprietarioDaConta(Conta conta) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new AccessDeniedException("Usuário não autenticado.");
+        }
+
+        Cliente clienteAutenticado = (Cliente) authentication.getPrincipal();
+        String idClienteAutenticado = clienteAutenticado.getId();
+        String idDonoDaConta = conta.getCliente().getId();
+
+        if (!idClienteAutenticado.equals(idDonoDaConta)) {
+            throw new AccessDeniedException("Acesso negado: Você não é o proprietário desta conta.");
+        }
     }
 
 

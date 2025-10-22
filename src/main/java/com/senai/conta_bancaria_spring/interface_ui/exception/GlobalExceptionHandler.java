@@ -4,6 +4,7 @@ import com.senai.conta_bancaria_spring.domain.exception.RecursoNaoEncontradoExce
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -45,6 +46,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Object> handleRecursoNaoEncontradoException(RecursoNaoEncontradoException ex) {
         return new ResponseEntity<>(Map.of("erro", ex.getMessage()), HttpStatus.NOT_FOUND);
     }
+
+    /*@ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Object> handleAccessDeniedException(AccessDeniedException ex) {
+        // Usa a mensagem da nossa exceção personalizada ou uma mensagem padrão do Spring Security
+        String mensagemErro = ex.getMessage() != null ? ex.getMessage() : "Acesso negado. Você não tem permissão para realizar esta operação.";
+        return new ResponseEntity<>(Map.of("erro", mensagemErro), HttpStatus.FORBIDDEN); // Retorna o status 403 Forbidden
+    }*/
 
     // --- O HANDLER MAIS GENÉRICO NO FINAL ---
     @ExceptionHandler(Exception.class) // Trata qualquer outra exceção não capturada pelos métodos acima.

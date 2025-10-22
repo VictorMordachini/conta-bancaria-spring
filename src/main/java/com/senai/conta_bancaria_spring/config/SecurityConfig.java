@@ -18,9 +18,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final SecurityFilter securityFilter;
+    private final CustomAccessDeniedHandler customAccessDeniedHandler; // <-- 1. INJETAR O NOVO HANDLER
 
-    public SecurityConfig(SecurityFilter securityFilter) {
+    // 2. ATUALIZAR O CONSTRUTOR
+    public SecurityConfig(SecurityFilter securityFilter, CustomAccessDeniedHandler customAccessDeniedHandler) {
         this.securityFilter = securityFilter;
+        this.customAccessDeniedHandler = customAccessDeniedHandler;
     }
 
     @Bean
@@ -29,11 +32,18 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .headers(headers -> headers.frameOptions(frameOptions -> frameOptions.disable()))
+
+                // --- 3. ADICIONAR ESTA CONFIGURAÇÃO DE EXCEÇÃO ---
+                .exceptionHandling(exceptions ->
+                        exceptions.accessDeniedHandler(customAccessDeniedHandler)
+                )
+                // --- FIM DA NOVA CONFIGURAÇÃO ---
+
                 .authorizeHttpRequests(authorize -> authorize
                         // Endpoints públicos
                         .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/clientes").permitAll()
-                        .requestMatchers("/h2-console/**").permitAll() // <-- Adicionar esta linha
+                        .requestMatchers("/h2-console/**").permitAll()
 
                         // Endpoints de GERENTE
                         .requestMatchers(HttpMethod.GET, "/clientes").hasAuthority("ROLE_GERENTE")

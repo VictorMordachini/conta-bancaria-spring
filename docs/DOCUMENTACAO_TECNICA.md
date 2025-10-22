@@ -84,6 +84,19 @@ do nosso modelo de domínio.
 Soft Delete: Marcar um registro como inativo (ativo = false) em vez de apagá-lo. Por que usamos? Para preservar o
 histórico e a integridade dos dados.
 
+E. Spring Security e JWT
+@EnableWebSecurity, SecurityFilterChain: Configuração central que ativa a segurança web. É onde definimos quais endpoints são públicos (ex: `/auth/login`) e quais são protegidos por papéis (`ROLE_GERENTE`, `ROLE_CLIENTE`).
+
+SessionCreationPolicy.STATELESS: Instrui o Spring Security a não criar sessões HTTP. Cada requisição deve se autenticar por conta própria (via token), tornando a API verdadeiramente RESTful.
+
+PasswordEncoder (BCrypt): Define o algoritmo de criptografia assimétrica usado para armazenar senhas de forma segura. O BCrypt é o padrão da indústria por ser lento e resistente a ataques de força bruta.
+
+UserDetailsService: Interface do Spring Security que usamos para conectar nossa lógica de busca de usuário (via `ClienteRepository`) ao framework de autenticação.
+
+AccessDeniedHandler: Componente de tratamento de exceção focado em segurança. Nós o implementamos (`CustomAccessDeniedHandler`) para garantir que todos os erros 403 Forbidden (acesso negado) retornem uma resposta JSON padronizada, em vez de uma página de erro HTML ou um corpo vazio.
+
+JWT (JSON Web Token): Padrão (RFC 7519) para criar tokens que afirmam um conjunto de informações (claims), como quem é o usuário (subject) e quais são seus papéis (roles). O token é assinado digitalmente pelo servidor, garantindo que não possa ser adulterado.
+
 3. Detalhamento das Classes e Funções
    Um tour guiado pelo código da aplicação.
 
@@ -102,6 +115,10 @@ polimorfismo. Foi adicionado o método atualizarParametrosContaCorrente para orq
 exception.RecursoNaoEncontradoException: Exceção customizada e semântica para erros de "não encontrado", permitindo que
 a API retorne o status 404 Not Found.
 
+entity.Cliente: A entidade Cliente foi significativamente atualizada. Agora implementa a interface `UserDetails` do Spring Security, conectando nosso modelo de domínio diretamente ao framework de autenticação. Inclui os novos campos `senha` (armazenada com BCrypt) e `role` (um Enum `UserRole` para definir se é `CLIENTE` ou `GERENTE`).
+
+service.ContaServiceDomain: O serviço de domínio agora implementa uma verificação de posse de recurso. O novo método `validarProprietarioDaConta` é chamado no início de todas as operações de conta (sacar, depositar, extrato) para garantir que um usuário autenticado só possa modificar ou ver as contas que lhe pertencem.
+
 B. Camada de Aplicação (application)
 dto.ContaCorrenteUpdateRequestDTO: Novo DTO para a atualização parcial de uma conta corrente.
 
@@ -110,47 +127,52 @@ para usar os valores padrão ao criar contas. A lógica de criação foi central
 criarInstanciaDeConta, e a busca de clientes foi centralizada em buscarClientePorIdOuFalhar, ambos aplicando o princípio
 DRY.
 
+service.AuthorizationService: Nova classe que implementa `UserDetailsService`. Sua única responsabilidade é carregar um `Cliente` (pelo CPF, que tratamos como username) e entregá-lo ao Spring Security.
+
+service.TokenService: Nova classe responsável por todo o ciclo de vida do JWT. Gera um token após o login bem-sucedido e valida o token em requisições subsequentes.
+
 C. Camada de Interface (interface_ui)
 controller.ContaController: Foi adicionado o novo endpoint PATCH /contas/corrente/{numeroConta} para permitir a
 atualização de limite e taxa.
 
 exception.GlobalExceptionHandler: Agora possui um ExceptionHandler específico para RecursoNaoEncontradoException,
-garantindo o retorno do status 404 Not Found.
+garantindo o retorno do status 404 Not Found. O tratamento da `AccessDeniedException` foi removido desta classe e centralizado no `CustomAccessDeniedHandler` para capturar *todos* os erros de acesso, incluindo os gerados pelos filtros do Spring Security.
+
+controller.AuthenticationController: Novo controller que expõe o endpoint público `POST /auth/login`. Ele recebe as credenciais, autentica o usuário e retorna o JWT gerado pelo `TokenService`.
 
 D. Camada de Configuração (config)
 config.BancoConfigProperties: Nova classe que mapeia e agrupa as propriedades de configuração do application.properties
 relacionadas aos padrões da conta corrente.
 
+SecurityConfig: A classe de configuração principal da segurança. Define o `PasswordEncoder`, o `AuthenticationManager` e as regras de autorização (`authorizeHttpRequests`) para cada endpoint.
+
+SecurityFilter: Um filtro que intercepta *todas* as requisições. Ele extrai o token JWT do cabeçalho `Authorization`, valida-o usando o `TokenService` e, se for válido, define o usuário no contexto de segurança para aquela requisição.
+
+CustomAccessDeniedHandler: Implementação personalizada que garante que qualquer erro `403 Forbidden` na aplicação (seja por regras de filtro ou lógica de serviço) retorne uma resposta JSON padronizada.
+
 4. Guia de Endpoints da API
-   Funcionalidade Método HTTP /URL Corpo (Exemplo JSON)    Resposta de Sucesso
+   Todas as requisições, exceto as marcadas como "PÚBLICO", exigem um cabeçalho de autenticação:
+   `Authorization: Bearer <SEU_TOKEN_JWT>`
 
-   Criar Cliente POST /clientes { "nome": "...", "cpf": ..., "tipoConta": "Corrente"} (limite/taxa/rendimento opcionais)
-   201 Created com o cliente criado
-
-   Listar Clientes Ativos GET /clientes N/A 200 OK com a lista de clientes
-
-   Buscar Cliente por ID GET /clientes/{id} N/A 200 OK com os dados do cliente
-
-   Atualizar Cliente PUT /clientes/{id} { "nome": "Novo Nome" } 200 OK com os dados atualizados
-
-   Desativar Cliente DELETE /clientes/{id} N/A 204 No Content
-
-   Abrir Nova Conta POST /clientes/{clienteId}/contas { "tipoConta": "Poupanca", "saldoInicial": "50.00" } (
-   limite/taxa/rendimento opcionais)    201 Created com a nova conta
-
-   Depositar POST /contas/{numeroConta}/depositar { "valor": "100.00" } 200 OK com mensagem de sucesso
-
-   Sacar POST /contas/{numeroConta}/sacar { "valor": "50.00" } 200 OK com mensagem de sucesso
-
-   Transferir POST /contas/{numContaOrigem}/transferir { "numeroContaDestino": ..., "valor": "..." } 200 OK com mensagem
-   de sucesso
-
-   Consultar Extrato GET /contas/{numeroConta}/extrato N/A 200 OK com a lista de transações
-
-   Atualizar C. Corrente PATCH /contas/corrente/{numeroConta} { "limite": 2000, "taxa": "0.01" } (campos opcionais)
+   Funcionalidade              Método HTTP / URL                       Permissão     Corpo (Exemplo JSON)
+   -------------------------    -----------------------------------     -----------   -------------------------------------------------
+   Autenticar Usuário           POST /auth/login                        PÚBLICO       { "cpf": ..., "senha": "..." }
+   Criar Novo Cliente           POST /clientes                          PÚBLICO       { "nome": "...", "cpf": ..., "senha": "...", ... }
+   Listar Clientes Ativos       GET /clientes                           GERENTE       N/A
+   Buscar Cliente por ID        GET /clientes/{id}                      GERENTE       N/A
+   Atualizar Cliente            PUT /clientes/{id}                      GERENTE       { "nome": "Novo Nome" }
+   Desativar Cliente            DELETE /clientes/{id}                   GERENTE       N/A
+   Abrir Nova Conta             POST /clientes/{clienteId}/contas       GERENTE       { "tipoConta": "Poupanca", ... }
+   Depositar                    POST /contas/{numeroConta}/depositar    CLIENTE       { "valor": "100.00" } (Apenas na própria conta)
+   Sacar                        POST /contas/{numeroConta}/sacar        CLIENTE       { "valor": "50.00" } (Apenas na própria conta)
+   Transferir                   POST /contas/{numContaOrigem}/transferir CLIENTE      { "numeroContaDestino": ..., ... } (Apenas da própria conta)
+   Consultar Extrato            GET /contas/{numeroConta}/extrato       CLIENTE       N/A (Apenas da própria conta)
+   Atualizar C. Corrente        PATCH /contas/corrente/{numeroConta}    CLIENTE       { "limite": 2000 } (Apenas na própria conta)
 
 5. Conclusão e Próximos Passos
-   A API em seu estado atual é uma aplicação robusta, funcional e com código limpo, cobrindo os casos de uso essenciais
-   de um sistema bancário. O próximo passo natural em sua evolução seria focar na Segurança (autenticação/autorização
-   com Spring Security), seguida pela implementação de uma suíte de Testes Automatizados e melhorias operacionais como
-   Paginação.
+   A API em seu estado atual é uma aplicação robusta, funcional e segura, cobrindo os casos de uso essenciais de um sistema bancário. A implementação do Spring Security com JWT e controle de acesso baseado em papéis (RBAC) garante a correta segregação de funções (Gerente vs. Cliente) e a posse de dados (um cliente só pode ver suas próprias contas).
+
+   Próximos passos naturais na evolução do projeto seriam:
+   1.  **Testes Automatizados**: Implementação de uma suíte de testes unitários (JUnit/Mockito) para os serviços e testes de integração (com `@SpringBootTest`) para os controllers, cobrindo os cenários de segurança.
+   2.  **Paginação**: Adicionar paginação ao endpoint `GET /clientes` para otimizar o desempenho.
+   3.  **Dockerização**: Criar um `Dockerfile` para conteinerizar a aplicação, facilitando o deploy.
