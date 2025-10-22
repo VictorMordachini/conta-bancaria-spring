@@ -1,6 +1,6 @@
 Documentação Mestra da API de Conta Bancária
-Versão: 1.1.0 (Estável)
-Data: 3 de outubro de 2025
+Versão: 1.2.0 (Segura)
+Data: 22 de outubro de 2025
 
 Índice
 Visão Geral e Arquitetura
