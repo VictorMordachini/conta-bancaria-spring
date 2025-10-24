@@ -20,7 +20,6 @@ public class SecurityConfig {
     private final SecurityFilter securityFilter;
     private final CustomAccessDeniedHandler customAccessDeniedHandler; // <-- 1. INJETAR O NOVO HANDLER
 
-    // 2. ATUALIZAR O CONSTRUTOR
     public SecurityConfig(SecurityFilter securityFilter, CustomAccessDeniedHandler customAccessDeniedHandler) {
         this.securityFilter = securityFilter;
         this.customAccessDeniedHandler = customAccessDeniedHandler;
@@ -33,13 +32,15 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .headers(headers -> headers.frameOptions(frameOptions -> frameOptions.disable()))
 
-                // --- 3. ADICIONAR ESTA CONFIGURAÇÃO DE EXCEÇÃO ---
                 .exceptionHandling(exceptions ->
                         exceptions.accessDeniedHandler(customAccessDeniedHandler)
                 )
-                // --- FIM DA NOVA CONFIGURAÇÃO ---
 
                 .authorizeHttpRequests(authorize -> authorize
+
+                        .requestMatchers("/v3/api-docs/**").permitAll()
+                        .requestMatchers("/swagger-ui/**").permitAll()
+
                         // Endpoints públicos
                         .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/clientes").permitAll()
