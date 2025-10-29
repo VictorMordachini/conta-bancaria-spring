@@ -1,6 +1,8 @@
 package com.senai.conta_bancaria_spring.domain.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.senai.conta_bancaria_spring.domain.exception.SaldoInsuficienteException;
+import com.senai.conta_bancaria_spring.domain.exception.ValorInvalidoException;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
@@ -48,7 +50,7 @@ public abstract class Conta {
 
     public void depositar(BigDecimal valor) {
         if (valor.compareTo(BigDecimal.TEN) <= 0) {
-            throw new IllegalArgumentException("O valor do depósito deve ser maior que R$10,00.");
+            throw new ValorInvalidoException("O valor do depósito deve ser maior que R$10,00.");
         }
         this.saldo = this.saldo.add(valor);
     }
@@ -56,20 +58,20 @@ public abstract class Conta {
     protected void validarValorDebitoPositivo(BigDecimal valor, String tipoOperacao) {
         if (valor == null || valor.compareTo(BigDecimal.ZERO) <= 0) {
             // Usamos String.format para criar uma mensagem de erro mais dinâmica.
-            throw new IllegalArgumentException(String.format("O valor do %s deve ser maior que R$0,00.", tipoOperacao));
+            throw new ValorInvalidoException(String.format("O valor do %s deve ser maior que R$0,00.", tipoOperacao));
         }
     }
 
     protected void validarSaldoSuficiente(BigDecimal valor) {
         if (valor.compareTo(this.getSaldo()) > 0) {
-            throw new IllegalStateException("Saldo insuficiente.");
+            throw new SaldoInsuficienteException("Saldo insuficiente.");
         }
     }
 
     protected void validarSaldoComLimiteSuficiente(BigDecimal valor, Long limite) {
         BigDecimal saldoDisponivel = this.getSaldo().add(BigDecimal.valueOf(limite));
         if (valor.compareTo(saldoDisponivel) > 0) {
-            throw new IllegalStateException("Saldo insuficiente, mesmo com o limite.");
+            throw new SaldoInsuficienteException("Saldo insuficiente, mesmo com o limite.");
         }
     }
 

@@ -45,7 +45,7 @@ public class ContaController {
     })
     @PostMapping("/{numeroConta}/depositar")
     public ResponseEntity<Map<String, String>> depositar(@PathVariable Long numeroConta, @Valid @RequestBody OperacaoRequestDTO dto) {
-        contaService.depositar(numeroConta, dto.getValor());
+        contaService.depositar(numeroConta, dto.valor());
         return ResponseEntity.ok(Map.of("mensagem", "Depósito realizado com sucesso."));
     }
 
@@ -67,7 +67,7 @@ public class ContaController {
     })
     @PostMapping("/{numeroConta}/sacar")
     public ResponseEntity<Map<String, String>> sacar(@PathVariable Long numeroConta, @Valid @RequestBody OperacaoRequestDTO dto) {
-        contaService.sacar(numeroConta, dto.getValor());
+        contaService.sacar(numeroConta, dto.valor());
         return ResponseEntity.ok(Map.of("mensagem", "Saque realizado com sucesso."));
     }
 
@@ -89,7 +89,7 @@ public class ContaController {
     })
     @PostMapping("/{numeroContaOrigem}/transferir")
     public ResponseEntity<Map<String, String>> transferir(@PathVariable Long numeroContaOrigem, @Valid @RequestBody TransferenciaRequestDTO dto) {
-        contaService.transferir(numeroContaOrigem, dto.getNumeroContaDestino(), dto.getValor());
+        contaService.transferir(numeroContaOrigem, dto.numeroContaDestino(), dto.valor());
         return ResponseEntity.ok(Map.of("mensagem", "Transferência realizada com sucesso."));
     }
 

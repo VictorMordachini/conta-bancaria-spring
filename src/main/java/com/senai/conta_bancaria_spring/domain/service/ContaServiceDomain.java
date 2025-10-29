@@ -9,6 +9,7 @@ import com.senai.conta_bancaria_spring.domain.entity.ContaCorrente;
 import com.senai.conta_bancaria_spring.domain.entity.Transacao;
 import com.senai.conta_bancaria_spring.domain.enums.TipoTransacao;
 import com.senai.conta_bancaria_spring.domain.exception.RecursoNaoEncontradoException;
+import com.senai.conta_bancaria_spring.domain.exception.RegraDeNegocioException;
 import com.senai.conta_bancaria_spring.domain.repository.ContaRepository;
 import com.senai.conta_bancaria_spring.domain.repository.TransacaoRepository;
 import jakarta.transaction.Transactional;
@@ -59,7 +60,7 @@ public class ContaServiceDomain {
     @Transactional
     public void transferir(Long numeroContaOrigem, Long numeroContaDestino, BigDecimal valor) {
         if (numeroContaOrigem.equals(numeroContaDestino)) {
-            throw new IllegalArgumentException("A conta de origem e destino não podem ser as mesmas.");
+            throw new RegraDeNegocioException("A conta de origem e destino não podem ser as mesmas.");
         }
 
         Conta contaOrigem = buscarPorNumero(numeroContaOrigem);

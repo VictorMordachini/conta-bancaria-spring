@@ -44,11 +44,11 @@ public class ContaCorrente extends Conta {
     }
 
     public void atualizarParametros(ContaCorrenteUpdateRequestDTO dto) {
-        if (dto.getLimite() != null) {
-            this.setLimite(dto.getLimite());
+        if (dto.limite() != null) {
+            this.setLimite(dto.limite());
         }
-        if (dto.getTaxa() != null) {
-            this.setTaxa(dto.getTaxa());
+        if (dto.taxa() != null) {
+            this.setTaxa(dto.taxa());
         }
     }
 }

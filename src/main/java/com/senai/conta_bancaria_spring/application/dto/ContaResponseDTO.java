@@ -1,40 +1,39 @@
 package com.senai.conta_bancaria_spring.application.dto;
 
-
 import com.senai.conta_bancaria_spring.domain.entity.Conta;
 import com.senai.conta_bancaria_spring.domain.entity.ContaCorrente;
 import com.senai.conta_bancaria_spring.domain.entity.ContaPoupanca;
-import lombok.Getter;
-import lombok.Setter;
 
 import java.math.BigDecimal;
 
-@Getter
-@Setter
-public class ContaResponseDTO {
-    private Long numero;
-    private BigDecimal saldo;
-    private String tipoConta;
-
-    // Campos específicos que podem ser nulos
-    private Long limite;
-    private BigDecimal taxa;
-    private BigDecimal rendimento;
-
-    // Método de fábrica para converter a entidade em DTO
+public record ContaResponseDTO(
+        Long numero,
+        BigDecimal saldo,
+        String tipoConta,
+        Long limite,
+        BigDecimal taxa,
+        BigDecimal rendimento
+) {
     public static ContaResponseDTO fromEntity(Conta conta) {
-        ContaResponseDTO dto = new ContaResponseDTO();
-        dto.setNumero(conta.getNumero());
-        dto.setSaldo(conta.getSaldo());
+        Long numero = conta.getNumero();
+        BigDecimal saldo = conta.getSaldo();
+        String tipoConta;
+        Long limite = null;
+        BigDecimal taxa = null;
+        BigDecimal rendimento = null;
 
         if (conta instanceof ContaCorrente cc) {
-            dto.setTipoConta("CORRENTE");
-            dto.setLimite(cc.getLimite());
-            dto.setTaxa(cc.getTaxa());
+            tipoConta = "CORRENTE";
+            limite = cc.getLimite();
+            taxa = cc.getTaxa();
         } else if (conta instanceof ContaPoupanca cp) {
-            dto.setTipoConta("POUPANCA");
-            dto.setRendimento(cp.getRendimento());
+            tipoConta = "POUPANCA";
+            rendimento = cp.getRendimento();
+        } else {
+            // Lida com um caso inesperado, se houver
+            tipoConta = "DESCONHECIDO";
         }
-        return dto;
+
+        return new ContaResponseDTO(numero, saldo, tipoConta, limite, taxa, rendimento);
     }
 }

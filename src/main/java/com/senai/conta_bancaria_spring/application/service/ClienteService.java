@@ -6,6 +6,7 @@ import com.senai.conta_bancaria_spring.domain.entity.*;
 import com.senai.conta_bancaria_spring.domain.enums.TipoTransacao;
 import com.senai.conta_bancaria_spring.domain.enums.UserRole;
 import com.senai.conta_bancaria_spring.domain.exception.RecursoNaoEncontradoException;
+import com.senai.conta_bancaria_spring.domain.exception.RegraDeNegocioException;
 import com.senai.conta_bancaria_spring.domain.repository.ClienteRepository;
 import com.senai.conta_bancaria_spring.domain.repository.TransacaoRepository;
 import jakarta.transaction.Transactional;
@@ -38,26 +39,26 @@ public class ClienteService {
 
     @Transactional
     public ClienteResponseDTO criarCliente(ClienteRequestDTO dto) {
-        if (clienteRepository.findByCpf(dto.getCpf()).isPresent()) {
-            throw new IllegalArgumentException("CPF já cadastrado.");
+        if (clienteRepository.findByCpf(dto.cpf()).isPresent()) {
+            throw new RegraDeNegocioException("CPF já cadastrado.");
         }
 
         Cliente cliente = new Cliente();
-        cliente.setNome(dto.getNome());
-        cliente.setCpf(dto.getCpf());
-        cliente.setSenha(passwordEncoder.encode(dto.getSenha()));
+        cliente.setNome(dto.nome());
+        cliente.setCpf(dto.cpf());
+        cliente.setSenha(passwordEncoder.encode(dto.senha()));
         cliente.setRole(UserRole.CLIENTE);
 
-        Conta novaConta = criarInstanciaDeConta(dto.getTipoConta(), dto.getSaldoInicial(), dto.getLimite(), dto.getTaxa(), dto.getRendimento());
+        Conta novaConta = criarInstanciaDeConta(dto.tipoConta(), dto.saldoInicial(), dto.limite(), dto.taxa(), dto.rendimento());
 
         cliente.adicionarConta(novaConta);
         Cliente clienteSalvo = clienteRepository.save(cliente);
 
-        if (dto.getSaldoInicial().compareTo(BigDecimal.ZERO) > 0) {
+        if (dto.saldoInicial().compareTo(BigDecimal.ZERO) > 0) {
             Transacao transacaoInicial = new Transacao();
             transacaoInicial.setConta(clienteSalvo.getContas().getFirst());
             transacaoInicial.setTipo(TipoTransacao.ABERTURA_CONTA);
-            transacaoInicial.setValor(dto.getSaldoInicial());
+            transacaoInicial.setValor(dto.saldoInicial());
             transacaoRepository.save(transacaoInicial);
         }
 
@@ -69,13 +70,13 @@ public class ClienteService {
         Cliente cliente = buscarClientePorIdOuFalhar(clienteId);
 
         boolean contaExistente = cliente.getContas().stream()
-                .anyMatch(conta -> conta.getClass().getSimpleName().equalsIgnoreCase(dto.getTipoConta()));
+                .anyMatch(conta -> conta.getClass().getSimpleName().equalsIgnoreCase(dto.tipoConta()));
 
         if (contaExistente) {
-            throw new IllegalArgumentException("O cliente já possui uma conta do tipo " + dto.getTipoConta());
+            throw new RegraDeNegocioException("O cliente já possui uma conta do tipo " + dto.tipoConta());
         }
 
-        Conta novaConta = criarInstanciaDeConta(dto.getTipoConta(), dto.getSaldoInicial(), dto.getLimite(), dto.getTaxa(), dto.getRendimento());
+        Conta novaConta = criarInstanciaDeConta(dto.tipoConta(), dto.saldoInicial(), dto.limite(), dto.taxa(), dto.rendimento());
 
         cliente.adicionarConta(novaConta);
 
@@ -83,11 +84,11 @@ public class ClienteService {
 
         Conta contaSalva = clienteSalvo.getContas().getLast();
 
-        if (dto.getSaldoInicial().compareTo(BigDecimal.ZERO) > 0) {
+        if (dto.saldoInicial().compareTo(BigDecimal.ZERO) > 0) {
             Transacao transacaoInicial = new Transacao();
             transacaoInicial.setConta(contaSalva);
             transacaoInicial.setTipo(TipoTransacao.ABERTURA_CONTA);
-            transacaoInicial.setValor(dto.getSaldoInicial());
+            transacaoInicial.setValor(dto.saldoInicial());
             transacaoRepository.save(transacaoInicial);
         }
 
@@ -113,7 +114,7 @@ public class ClienteService {
 
     public ClienteResponseDTO atualizarCliente(String id, ClienteUpdateRequestDTO dto) {
         Cliente cliente = buscarClientePorIdOuFalhar(id);
-        cliente.setNome(dto.getNome());
+        cliente.setNome(dto.nome());
         Cliente clienteAtualizado = clienteRepository.save(cliente);
         return ClienteResponseDTO.fromEntity(clienteAtualizado);
     }

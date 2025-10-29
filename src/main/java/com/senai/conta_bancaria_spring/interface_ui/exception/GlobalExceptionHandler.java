@@ -1,6 +1,9 @@
 package com.senai.conta_bancaria_spring.interface_ui.exception;
 
 import com.senai.conta_bancaria_spring.domain.exception.RecursoNaoEncontradoException;
+import com.senai.conta_bancaria_spring.domain.exception.RegraDeNegocioException;
+import com.senai.conta_bancaria_spring.domain.exception.SaldoInsuficienteException;
+import com.senai.conta_bancaria_spring.domain.exception.ValorInvalidoException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,7 +31,11 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(errors, HttpStatus.BAD_REQUEST); // Retorna o mapa de erros com o status HTTP 400 (Bad Request).
     }
 
-    @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
+    @ExceptionHandler({IllegalArgumentException.class,
+            IllegalStateException.class,
+            SaldoInsuficienteException.class,
+            ValorInvalidoException.class,
+            RegraDeNegocioException.class})
     // Trata exceções comuns de regras de negócio.
     public ResponseEntity<Object> handleBusinessException(Exception ex) {
         return new ResponseEntity<>(Map.of("erro", ex.getMessage()), HttpStatus.BAD_REQUEST); // Retorna a mensagem da exceção com status HTTP 400.
@@ -47,12 +54,6 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(Map.of("erro", ex.getMessage()), HttpStatus.NOT_FOUND);
     }
 
-    /*@ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<Object> handleAccessDeniedException(AccessDeniedException ex) {
-        // Usa a mensagem da nossa exceção personalizada ou uma mensagem padrão do Spring Security
-        String mensagemErro = ex.getMessage() != null ? ex.getMessage() : "Acesso negado. Você não tem permissão para realizar esta operação.";
-        return new ResponseEntity<>(Map.of("erro", mensagemErro), HttpStatus.FORBIDDEN); // Retorna o status 403 Forbidden
-    }*/
 
     // --- O HANDLER MAIS GENÉRICO NO FINAL ---
     @ExceptionHandler(Exception.class) // Trata qualquer outra exceção não capturada pelos métodos acima.
