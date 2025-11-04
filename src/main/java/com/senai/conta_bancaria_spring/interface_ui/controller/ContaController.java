@@ -1,6 +1,7 @@
 package com.senai.conta_bancaria_spring.interface_ui.controller;
 
 import com.senai.conta_bancaria_spring.application.dto.*;
+import com.senai.conta_bancaria_spring.application.service.PagamentoAppService;
 import com.senai.conta_bancaria_spring.domain.service.ContaServiceDomain;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -10,6 +11,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,10 +23,12 @@ import java.util.Map;
 @Tag(name = "3. Operações de Conta (Cliente)", description = "Endpoints para operações financeiras. Requer ROLE_CLIENTE e posse da conta.")
 public class ContaController {
     private final ContaServiceDomain contaService;
+    private final PagamentoAppService pagamentoAppService;
 
 
-    public ContaController(ContaServiceDomain contaService) {
+    public ContaController(ContaServiceDomain contaService, PagamentoAppService pagamentoAppService) {
         this.contaService = contaService;
+        this.pagamentoAppService = pagamentoAppService;
     }
 
     @Operation(summary = "Realiza um depósito (CLIENTE)",
@@ -138,5 +142,32 @@ public class ContaController {
         return ResponseEntity.ok(contaAtualizada);
     }
 
+    @Operation(summary = "Realiza um pagamento de boleto (CLIENTE)",
+            description = "Debita um valor da conta para pagar um boleto, aplicando taxas selecionadas. " +
+                    "Registra a operação mesmo em caso de falha (ex: saldo insuficiente).")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Pagamento realizado com sucesso",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = PagamentoResponseDTO.class))),
+            @ApiResponse(responseCode = "400", description = "Dados inválidos, boleto vencido ou saldo insuficiente",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = Map.class))),
+            @ApiResponse(responseCode = "403", description = "Acesso negado (não é o proprietário da conta)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = Map.class))),
+            @ApiResponse(responseCode = "404", description = "Conta ou Taxa(s) não encontrada(s)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = Map.class)))
+    })
+    @PostMapping("/{numeroConta}/pagar")
+    public ResponseEntity<PagamentoResponseDTO> realizarPagamento(
+            @PathVariable Long numeroConta,
+            @Valid @RequestBody PagamentoRequestDTO dto) {
+
+        PagamentoResponseDTO response = pagamentoAppService.realizarPagamento(numeroConta, dto);
+
+        // Retorna 201 Created (pois um recurso 'Pagamento' foi criado com SUCESSO)
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
 
 }

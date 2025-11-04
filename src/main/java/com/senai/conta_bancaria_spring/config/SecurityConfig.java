@@ -53,6 +53,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/clientes/{id}").hasAuthority("ROLE_GERENTE")
                         .requestMatchers(HttpMethod.POST, "/clientes/{clienteId}/contas").hasAuthority("ROLE_GERENTE")
 
+                        .requestMatchers("/taxas/**").hasAuthority("ROLE_GERENTE")
+
                         // Endpoints de CLIENTE
                         .requestMatchers("/contas/**").hasAuthority("ROLE_CLIENTE")
 

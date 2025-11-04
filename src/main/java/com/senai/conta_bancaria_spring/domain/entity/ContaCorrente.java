@@ -51,4 +51,20 @@ public class ContaCorrente extends Conta {
             this.setTaxa(dto.taxa());
         }
     }
+
+    /**
+     * Sobrescreve o método de debitar pagamento para aplicar
+     * a lógica de validação com limite, específica da Conta Corrente.
+     */
+    @Override
+    public void debitarPagamento(BigDecimal valorTotal) {
+        // 1. Valida se o valor do débito é positivo
+        validarValorDebitoPositivo(valorTotal, "pagamento");
+
+        // 2. Validação específica com LIMITE
+        validarSaldoComLimiteSuficiente(valorTotal, this.getLimite());
+
+        // 3. Aplica o débito
+        this.setSaldo(this.getSaldo().subtract(valorTotal));
+    }
 }

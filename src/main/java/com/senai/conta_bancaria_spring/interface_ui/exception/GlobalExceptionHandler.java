@@ -1,9 +1,6 @@
 package com.senai.conta_bancaria_spring.interface_ui.exception;
 
-import com.senai.conta_bancaria_spring.domain.exception.RecursoNaoEncontradoException;
-import com.senai.conta_bancaria_spring.domain.exception.RegraDeNegocioException;
-import com.senai.conta_bancaria_spring.domain.exception.SaldoInsuficienteException;
-import com.senai.conta_bancaria_spring.domain.exception.ValorInvalidoException;
+import com.senai.conta_bancaria_spring.domain.exception.*;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -35,11 +32,14 @@ public class GlobalExceptionHandler {
             IllegalStateException.class,
             SaldoInsuficienteException.class,
             ValorInvalidoException.class,
-            RegraDeNegocioException.class})
+            RegraDeNegocioException.class,
+            PagamentoInvalidoException.class
+    })
     // Trata exceções comuns de regras de negócio.
     public ResponseEntity<Object> handleBusinessException(Exception ex) {
         return new ResponseEntity<>(Map.of("erro", ex.getMessage()), HttpStatus.BAD_REQUEST); // Retorna a mensagem da exceção com status HTTP 400.
     }
+
 
     @ExceptionHandler(OptimisticLockingFailureException.class) // Trata a exceção de concorrência.
     public ResponseEntity<Object> handleOptimisticLockingFailureException(OptimisticLockingFailureException ex) {

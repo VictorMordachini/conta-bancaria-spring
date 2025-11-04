@@ -76,4 +76,22 @@ public abstract class Conta {
     }
 
     public abstract BigDecimal debitarParaTransferencia(BigDecimal valor);
+
+    /**
+     * Debita um valor genérico da conta, aplicando validação de saldo.
+     * Este método é usado por operações (como Pagamentos) que calculam
+     * suas próprias taxas e não devem usar a lógica de saque/transferência padrão.
+     *
+     * @param valorTotal Valor total a ser debitado (ex: boleto + taxas).
+     */
+    public void debitarPagamento(BigDecimal valorTotal) {
+        // 1. Valida se o valor do débito é positivo
+        validarValorDebitoPositivo(valorTotal, "pagamento");
+
+        // 2. Validação padrão (apenas saldo)
+        validarSaldoSuficiente(valorTotal);
+
+        // 3. Aplica o débito
+        this.setSaldo(this.getSaldo().subtract(valorTotal));
+    }
 }
