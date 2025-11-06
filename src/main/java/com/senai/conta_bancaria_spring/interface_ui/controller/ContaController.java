@@ -1,7 +1,10 @@
 package com.senai.conta_bancaria_spring.interface_ui.controller;
 
 import com.senai.conta_bancaria_spring.application.dto.*;
+import com.senai.conta_bancaria_spring.application.service.AutenticacaoIoTService;
 import com.senai.conta_bancaria_spring.application.service.PagamentoAppService;
+import com.senai.conta_bancaria_spring.application.service.TransacaoPendenteService;
+import com.senai.conta_bancaria_spring.domain.entity.Conta;
 import com.senai.conta_bancaria_spring.domain.service.ContaServiceDomain;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -24,11 +27,17 @@ import java.util.Map;
 public class ContaController {
     private final ContaServiceDomain contaService;
     private final PagamentoAppService pagamentoAppService;
+    private final AutenticacaoIoTService autenticacaoIoTService;
+    private final TransacaoPendenteService transacaoPendenteService;
 
-
-    public ContaController(ContaServiceDomain contaService, PagamentoAppService pagamentoAppService) {
+    public ContaController(ContaServiceDomain contaService,
+                           PagamentoAppService pagamentoAppService,
+                           AutenticacaoIoTService autenticacaoIoTService,
+                           TransacaoPendenteService transacaoPendenteService) {
         this.contaService = contaService;
         this.pagamentoAppService = pagamentoAppService;
+        this.autenticacaoIoTService = autenticacaoIoTService;
+        this.transacaoPendenteService = transacaoPendenteService;
     }
 
     @Operation(summary = "Realiza um depósito (CLIENTE)",
@@ -53,13 +62,13 @@ public class ContaController {
         return ResponseEntity.ok(Map.of("mensagem", "Depósito realizado com sucesso."));
     }
 
-    @Operation(summary = "Realiza um saque (CLIENTE)",
-            description = "Retira um valor do saldo da conta (aplicando taxas, se for Conta Corrente). Requer ROLE_CLIENTE e ser o proprietário da conta.")
+    @Operation(summary = "Solicita um saque (CLIENTE)",
+            description = "Inicia uma solicitação de saque. Requer confirmação biométrica via IoT para ser concluído.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Saque realizado com sucesso",
+            @ApiResponse(responseCode = "202", description = "Solicitação aceita. Aguardando confirmação IoT.",
                     content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = Map.class))),
-            @ApiResponse(responseCode = "400", description = "Valor inválido ou saldo insuficiente",
+                            schema = @Schema(example = "{\"mensagem\": \"Operação de Saque iniciada. Aguarde a confirmação biométrica no seu dispositivo.\"}"))),
+            @ApiResponse(responseCode = "400", description = "Valor inválido (ex: negativo)",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = Map.class))),
             @ApiResponse(responseCode = "403", description = "Acesso negado (não é o proprietário da conta)",
@@ -71,30 +80,36 @@ public class ContaController {
     })
     @PostMapping("/{numeroConta}/sacar")
     public ResponseEntity<Map<String, String>> sacar(@PathVariable Long numeroConta, @Valid @RequestBody OperacaoRequestDTO dto) {
-        contaService.sacar(numeroConta, dto.valor());
-        return ResponseEntity.ok(Map.of("mensagem", "Saque realizado com sucesso."));
+        // 1. Busca a conta apenas para identificar o cliente (sem travar linha no banco ainda)
+        Conta conta = contaService.buscarPorNumero(numeroConta);
+
+        // 2. Inicia o processo de autenticação IoT
+        String idCodigo = autenticacaoIoTService.solicitarAutenticacao(conta.getCliente());
+
+        // 3. Salva a intenção de saque como pendente
+        transacaoPendenteService.criarSaquePendente(numeroConta, dto.valor(), idCodigo);
+
+        // 4. Retorna 202 Accepted para o cliente da API
+        return ResponseEntity.accepted()
+                .body(Map.of("mensagem", "Operação de Saque iniciada. Aguarde a confirmação biométrica no seu dispositivo."));
     }
 
-    @Operation(summary = "Realiza uma transferência (CLIENTE)",
-            description = "Transfere um valor de uma conta de origem para uma de destino. Requer ROLE_CLIENTE e ser o proprietário da conta de *origem*.")
+    @Operation(summary = "Solicita uma transferência (CLIENTE)",
+            description = "Inicia uma solicitação de transferência. Requer confirmação biométrica via IoT para ser concluída.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Transferência realizada com sucesso",
+            @ApiResponse(responseCode = "202", description = "Solicitação aceita. Aguardando confirmação IoT.",
                     content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = Map.class))),
-            @ApiResponse(responseCode = "400", description = "Dados inválidos, saldo insuficiente ou contas iguais",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = Map.class))),
-            @ApiResponse(responseCode = "403", description = "Acesso negado (não é o proprietário da conta de origem)",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = Map.class))),
-            @ApiResponse(responseCode = "404", description = "Conta de origem ou destino não encontrada",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = Map.class)))
+                            schema = @Schema(example = "{\"mensagem\": \"Transferência iniciada. Aguarde a confirmação biométrica.\"}"))),
+            // ... (erros 400, 403, 404)
     })
     @PostMapping("/{numeroContaOrigem}/transferir")
     public ResponseEntity<Map<String, String>> transferir(@PathVariable Long numeroContaOrigem, @Valid @RequestBody TransferenciaRequestDTO dto) {
-        contaService.transferir(numeroContaOrigem, dto.numeroContaDestino(), dto.valor());
-        return ResponseEntity.ok(Map.of("mensagem", "Transferência realizada com sucesso."));
+        Conta conta = contaService.buscarPorNumero(numeroContaOrigem);
+        String idCodigo = autenticacaoIoTService.solicitarAutenticacao(conta.getCliente());
+        transacaoPendenteService.criarTransferenciaPendente(numeroContaOrigem, dto, idCodigo);
+
+        return ResponseEntity.accepted()
+                .body(Map.of("mensagem", "Transferência iniciada. Aguarde a confirmação biométrica."));
     }
 
     // ENDPOINT PARA O EXTRATO
@@ -142,32 +157,23 @@ public class ContaController {
         return ResponseEntity.ok(contaAtualizada);
     }
 
-    @Operation(summary = "Realiza um pagamento de boleto (CLIENTE)",
-            description = "Debita um valor da conta para pagar um boleto, aplicando taxas selecionadas. " +
-                    "Registra a operação mesmo em caso de falha (ex: saldo insuficiente).")
+    @Operation(summary = "Solicita um pagamento de boleto (CLIENTE)",
+            description = "Inicia uma solicitação de pagamento. Requer confirmação biométrica via IoT para ser concluído.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Pagamento realizado com sucesso",
+            @ApiResponse(responseCode = "202", description = "Solicitação aceita. Aguardando confirmação IoT.",
                     content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = PagamentoResponseDTO.class))),
-            @ApiResponse(responseCode = "400", description = "Dados inválidos, boleto vencido ou saldo insuficiente",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = Map.class))),
-            @ApiResponse(responseCode = "403", description = "Acesso negado (não é o proprietário da conta)",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = Map.class))),
-            @ApiResponse(responseCode = "404", description = "Conta ou Taxa(s) não encontrada(s)",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = Map.class)))
+                            schema = @Schema(example = "{\"mensagem\": \"Pagamento iniciado. Aguarde a confirmação biométrica.\"}"))),
+            // ... (erros 400, 403, 404)
     })
     @PostMapping("/{numeroConta}/pagar")
-    public ResponseEntity<PagamentoResponseDTO> realizarPagamento(
-            @PathVariable Long numeroConta,
-            @Valid @RequestBody PagamentoRequestDTO dto) {
+    public ResponseEntity<Map<String, String>> realizarPagamento(@PathVariable Long numeroConta, @Valid @RequestBody PagamentoRequestDTO dto) {
+        Conta conta = contaService.buscarPorNumero(numeroConta);
+        String idCodigo = autenticacaoIoTService.solicitarAutenticacao(conta.getCliente());
+        transacaoPendenteService.criarPagamentoPendente(numeroConta, dto, idCodigo);
 
-        PagamentoResponseDTO response = pagamentoAppService.realizarPagamento(numeroConta, dto);
-
-        // Retorna 201 Created (pois um recurso 'Pagamento' foi criado com SUCESSO)
-        return new ResponseEntity<>(response, HttpStatus.CREATED);
+        // Nota: Mudamos o retorno de PagamentoResponseDTO para Map, pois a resposta final não existe ainda.
+        return ResponseEntity.accepted()
+                .body(Map.of("mensagem", "Pagamento iniciado. Aguarde a confirmação biométrica."));
     }
 
 }
