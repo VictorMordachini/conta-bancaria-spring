@@ -1,178 +1,126 @@
-Documentação Mestra da API de Conta Bancária
-Versão: 1.2.0 (Segura)
-Data: 22 de outubro de 2025
+# Documentação Mestra da API de Conta Bancária
+**Versão:** 2.0.0 (Com Autenticação IoT e Pagamentos)
+**Data:** 06 de novembro de 2025
 
-Índice
-Visão Geral e Arquitetura
+## Índice
+1. [Visão Geral e Arquitetura](#1-visão-geral-e-arquitetura)
+2. [Dicionário de Tecnologias, Conceitos e Padrões](#2-dicionário-de-tecnologias-conceitos-e-padrões)
+3. [Detalhamento das Classes e Funções](#3-detalhamento-das-classes-e-funções)
+4. [Fluxos de Autenticação e Segurança](#4-fluxos-de-autenticação-e-segurança)
+5. [Guia de Endpoints da API](#5-guia-de-endpoints-da-api)
+6. [Conclusão e Próximos Passos](#6-conclusão-e-próximos-passos)
 
-Dicionário de Tecnologias, Conceitos e Padrões
+---
 
-Detalhamento das Classes e Funções
+## 1. Visão Geral e Arquitetura
+A API foi projetada com uma arquitetura em camadas inspirada no Domain-Driven Design (DDD), organizando o código por responsabilidades de negócio para clareza, flexibilidade e manutenibilidade.
 
-Guia de Endpoints da API
+* **domain (Domínio):** O coração da aplicação, contendo a lógica de negócio e regras independentes (Entidades, Enums, Repositórios, Services de Domínio).
+* **application (Aplicação):** Camada orquestradora que coordena casos de uso, convertendo DTOs em ações de domínio.
+* **interface_ui (Interface / Exposição):** Fachada de comunicação externa (Controllers REST, Exception Handlers).
+* **infrastructure (Infraestrutura):** Implementações técnicas que dão suporte ao domínio, como comunicação MQTT e agendadores.
+* **config:** Configurações externalizadas e beans do Spring (Segurança, Swagger, Propriedades).
 
-Conclusão e Próximos Passos
+---
 
-1. Visão Geral e Arquitetura
-   A API foi projetada com uma arquitetura em camadas inspirada no Domain-Driven Design (DDD). Esta abordagem organiza o
-   código de acordo com as responsabilidades de negócio, resultando em um sistema mais claro, flexível e fácil de
-   manter.
+## 2. Dicionário de Tecnologias, Conceitos e Padrões
 
-domain (Domínio): O coração da aplicação. Contém toda a lógica de negócio e as regras que definem o que é uma conta
-bancária, um cliente, etc. É totalmente independente das outras camadas.
+### A. Spring Ecosystem
+* **Spring Boot 3 & Java 21:** Base moderna e robusta para a aplicação.
+* **Spring Security & JWT:** Autenticação stateless via tokens JWT e autorização baseada em papéis (RBAC: `ROLE_GERENTE`, `ROLE_CLIENTE`).
+* **Spring Data JPA:** Abstração para persistência de dados, utilizando Hibernate como provedor.
+* **Spring Integration MQTT (via `spring-mqttx`):** Biblioteca para simplificar a comunicação assíncrona com brokers MQTT.
 
-application (Aplicação): O orquestrador. Serve como uma camada intermediária que coordena os casos de uso (ex: "criar um
-novo cliente"), convertendo dados de entrada (DTOs) em ações no domínio.
+### B. Padrões de Projeto e Arquitetura
+* **DDD (Domain-Driven Design):** Foco no núcleo do negócio, com entidades ricas e serviços de domínio para lógicas complexas.
+* **Polimorfismo:** Utilizado nas operações de conta (`ContaCorrente` vs `ContaPoupanca`) para delegar regras específicas (ex: limite, rendimento).
+* **DTO (Data Transfer Object):** Desacoplamento entre a camada de apresentação (API) e o modelo de domínio.
+* **Saga / Processo de Negócio Longo (Assíncrono):** Implementado para operações financeiras que requerem validação externa (IoT), onde a requisição inicial retorna `202 Accepted` e a conclusão ocorre posteriormente via mensagem MQTT.
 
-interface_ui (Interface / Exposição): A fachada. É a camada que se comunica com o mundo exterior (neste caso, via
-HTTP/JSON), expondo a API através de endpoints REST e tratando os erros de forma centralizada.
+### C. Conceitos Chave
+* **Autenticação IoT (2FA Assíncrono):** Operações críticas (saque, transferência, pagamento) exigem uma segunda validação biométrica em um dispositivo físico do cliente.
+* **Transação Pendente:** Estado intermediário de uma operação financeira aguardando a confirmação IoT.
+* **Soft Delete:** Preservação de histórico ao desativar clientes em vez de excluí-los fisicamente.
+* **Lock Otimista (`@Version`):** Prevenção de concorrência desleal na atualização de saldos.
 
-config: Contém classes para configurações externalizadas da aplicação, permitindo que regras de negócio (como valores
-padrão) sejam alteradas sem modificar o código-fonte.
+---
 
-2. Dicionário de Tecnologias, Conceitos e Padrões
-   Esta seção explica os "porquês" por trás das ferramentas e decisões técnicas.
+## 3. Detalhamento das Classes e Funções
 
-A. Spring Boot e Spring Framework
-@RestController, @RequestMapping, etc.: Mapeiam as URLs e os métodos HTTP para os métodos nos controllers, definindo os
-endpoints da API.
+### A. Camada de Domínio (domain)
+* **Entidades Principais:** `Cliente`, `Conta` (abstrata), `ContaCorrente`, `ContaPoupanca`, `Transacao`.
+* **Novas Entidades (Sprint 2):**
+   * `Pagamento`: Registra pagamentos de boletos.
+   * `Taxa`: Define custos adicionais aplicáveis a pagamentos.
+   * `DispositivoIoT` & `CodigoAutenticacao`: Gerenciam a segurança física e códigos 2FA.
+   * `TransacaoPendente`: Armazena temporariamente operações aguardando validação IoT.
+* **Serviços de Domínio:**
+   * `ContaServiceDomain`: Lógica central de contas (depósito, saque, transferência).
+   * `PagamentoDomainService`: Lógica de cálculo de pagamentos (valor + taxas) e validações.
 
-Injeção de Dependência: O Spring gerencia a criação dos objetos (Beans) e os "injeta" onde são necessários (via
-construtor). Por que usamos? Para criar um código desacoplado e fácil de testar.
+### B. Camada de Aplicação (application)
+* **Serviços Orquestradores:**
+   * `ClienteService`: Gerenciamento de clientes e abertura de contas.
+   * `PagamentoAppService`: Coordena o fluxo de pagamento, persistindo sucesso ou falha.
+   * `AutenticacaoIoTService`: Gera códigos 2FA e valida respostas dos dispositivos.
+   * `TransacaoPendenteService`: Gerencia o ciclo de vida das operações em espera.
 
-@Transactional: Garante que um método seja executado dentro de uma transação de banco de dados. Por que usamos? É
-crítico para operações financeiras para garantir a consistência dos dados (Atomicidade).
+### C. Camada de Infraestrutura (infrastructure)
+* `MqttPublisherService`: Envia solicitações de autenticação para os dispositivos via tópico MQTT.
+* `MqttListenerService`: Escuta confirmações biométricas e dispara a execução das transações pendentes.
+* `LimpezaPendenciasScheduler`: Tarefa agendada para remover transações que expiraram sem validação.
 
-@ConfigurationProperties e @Value: Mecanismos para injetar valores do arquivo application.properties diretamente em
-classes de configuração ou campos de serviços. Por que usamos? Para externalizar configurações, permitindo que regras de
-negócio (como taxas e limites padrão) sejam alteradas sem recompilar o código.
+---
 
-GlobalExceptionHandler: Centraliza o tratamento de erros. Por que usamos? Para manter os controllers limpos e garantir
-que todas as respostas de erro da API sejam consistentes e informativas.
+## 4. Fluxos de Autenticação e Segurança
 
-@Valid e Jakarta Bean Validation: Valida os dados de entrada (DTOs) na "porta de entrada" da API. Por que usamos? Para
-proteger a aplicação de dados inválidos e fornecer feedback claro ao cliente (400 Bad Request).
+### A. Autenticação de Usuário (JWT)
+1.  Cliente envia CPF/Senha para `/auth/login`.
+2.  API valida e retorna um **Token JWT**.
+3.  Cliente usa o token no header `Authorization: Bearer ...` para requisições subsequentes.
 
-B. JPA / Hibernate (Persistência)
-@Entity: Transforma uma classe Java em uma tabela no banco de dados.
+### B. Autenticação de Operação (IoT / MQTT)
+1.  Cliente solicita operação (ex: `POST /contas/123/sacar`).
+2.  API gera um `CodigoAutenticacao`, salva uma `TransacaoPendente` e envia solicitação via MQTT para o dispositivo do cliente.
+3.  API retorna imediatamente `HTTP 202 Accepted`.
+4.  Cliente valida biometria no dispositivo físico.
+5.  Dispositivo envia confirmação via MQTT para a API.
+6.  `MqttListenerService` recebe a confirmação, valida o código e executa a operação financeira real (debitando a conta).
 
-@Inheritance(strategy = SINGLE_TABLE): Define que Conta e suas subclasses serão salvas na mesma tabela. Por que usamos?
-É uma estratégia simples e performática, mas exige que colunas específicas de subclasses (limite, rendimento) permitam
-valores nulos.
+---
 
-@Version (Lock Otimista): Adiciona um campo de versionamento à entidade. Por que usamos? Para prevenir condições de
-corrida, garantindo que operações simultâneas na mesma conta não corrompam os dados.
+## 5. Guia de Endpoints da API
 
-C. Java e Boas Práticas (Clean Code)
-BigDecimal: A única escolha correta para manipular dinheiro em Java, garantindo precisão nos cálculos.
+> **Nota:** Todos os endpoints protegidos exigem o header `Authorization: Bearer <TOKEN_JWT>`.
 
-enum (ex: TipoTransacao): Garante segurança de tipo e legibilidade para valores constantes.
+| Funcionalidade | Método | URL | Permissão | Status Típico |
+| :--- | :--- | :--- | :--- | :--- |
+| **Autenticação** | POST | `/auth/login` | PÚBLICO | `200 OK` |
+| **Clientes** | POST | `/clientes` | PÚBLICO | `201 Created` |
+| | GET | `/clientes` | GERENTE | `200 OK` |
+| | GET | `/clientes/{id}` | GERENTE | `200 OK` |
+| | PUT | `/clientes/{id}` | GERENTE | `200 OK` |
+| | DELETE | `/clientes/{id}` | GERENTE | `204 No Content` |
+| | POST | `/clientes/{id}/contas`| GERENTE | `201 Created` |
+| **Taxas** | POST | `/taxas` | GERENTE | `201 Created` |
+| | GET | `/taxas` | GERENTE | `200 OK` |
+| | PUT | `/taxas/{id}` | GERENTE | `200 OK` |
+| | DELETE | `/taxas/{id}` | GERENTE | `204 No Content` |
+| **Contas (Operações)**| POST | `/contas/{num}/depositar`| CLIENTE (Dono)| `200 OK` |
+| | POST | `/contas/{num}/sacar` | CLIENTE (Dono)| `202 Accepted`*|
+| | POST | `/contas/{org}/transferir`| CLIENTE (Dono)| `202 Accepted`*|
+| | POST | `/contas/{num}/pagar` | CLIENTE (Dono)| `202 Accepted`*|
+| | GET | `/contas/{num}/extrato` | CLIENTE (Dono)| `200 OK` |
+| | PATCH | `/contas/corrente/{num}`| CLIENTE (Dono)| `200 OK` |
 
-@SuperBuilder (Lombok): Gera o código para o padrão "Builder", permitindo construir objetos de forma fluida e legível (
-Objeto.builder().campo(valor).build()).
+\* *Operações assíncronas que requerem validação IoT subsequente.*
 
-Polimorfismo: Em vez de usar if (objeto instanceof Classe), delegamos a responsabilidade da ação para a própria classe.
-Por que usamos? Para criar um código mais limpo, coeso e extensível. Visto na refatoração do método transferir.
+---
 
-DRY (Don't Repeat Yourself): Princípio que visa eliminar a duplicação de código. Por que usamos? Para facilitar a
-manutenção e evitar bugs. Visto na extração de lógicas repetitivas para métodos privados (ex: criarInstanciaDeConta).
+## 6. Conclusão e Próximos Passos
+A versão 2.0.0 da API representa um avanço significativo em segurança e funcionalidade, simulando um ambiente bancário moderno com validação em duas etapas via hardware (IoT) e operações financeiras complexas (pagamentos com taxas variáveis).
 
-D. Padrões de Projeto e Arquitetura
-DTO (Data Transfer Object): Classes simples que carregam dados entre as camadas. Por que usamos? Para desacoplar a API
-do nosso modelo de domínio.
-
-Soft Delete: Marcar um registro como inativo (ativo = false) em vez de apagá-lo. Por que usamos? Para preservar o
-histórico e a integridade dos dados.
-
-E. Spring Security e JWT
-@EnableWebSecurity, SecurityFilterChain: Configuração central que ativa a segurança web. É onde definimos quais endpoints são públicos (ex: `/auth/login`) e quais são protegidos por papéis (`ROLE_GERENTE`, `ROLE_CLIENTE`).
-
-SessionCreationPolicy.STATELESS: Instrui o Spring Security a não criar sessões HTTP. Cada requisição deve se autenticar por conta própria (via token), tornando a API verdadeiramente RESTful.
-
-PasswordEncoder (BCrypt): Define o algoritmo de criptografia assimétrica usado para armazenar senhas de forma segura. O BCrypt é o padrão da indústria por ser lento e resistente a ataques de força bruta.
-
-UserDetailsService: Interface do Spring Security que usamos para conectar nossa lógica de busca de usuário (via `ClienteRepository`) ao framework de autenticação.
-
-AccessDeniedHandler: Componente de tratamento de exceção focado em segurança. Nós o implementamos (`CustomAccessDeniedHandler`) para garantir que todos os erros 403 Forbidden (acesso negado) retornem uma resposta JSON padronizada, em vez de uma página de erro HTML ou um corpo vazio.
-
-JWT (JSON Web Token): Padrão (RFC 7519) para criar tokens que afirmam um conjunto de informações (claims), como quem é o usuário (subject) e quais são seus papéis (roles). O token é assinado digitalmente pelo servidor, garantindo que não possa ser adulterado.
-
-3. Detalhamento das Classes e Funções
-   Um tour guiado pelo código da aplicação.
-
-A. Camada de Domínio (domain)
-entity.Conta: Classe abstrata base. Agora contém os métodos protected de validação (validarValorDebitoPositivo,
-validarSaldoSuficiente, etc.) para centralizar regras de negócio comuns e o novo contrato abstract
-debitarParaTransferencia.
-
-entity.ContaCorrente / ContaPoupanca: Implementações concretas que agora contêm sua própria lógica de débito para
-transferências e saques, utilizando os métodos de validação herdados. ContaCorrente também possui o método
-atualizarParametros para alterar seu estado.
-
-service.ContaServiceDomain: Serviço de Domínio. O método transferir foi refatorado e está muito mais limpo, usando
-polimorfismo. Foi adicionado o método atualizarParametrosContaCorrente para orquestrar a atualização de uma conta.
-
-exception.RecursoNaoEncontradoException: Exceção customizada e semântica para erros de "não encontrado", permitindo que
-a API retorne o status 404 Not Found.
-
-entity.Cliente: A entidade Cliente foi significativamente atualizada. Agora implementa a interface `UserDetails` do Spring Security, conectando nosso modelo de domínio diretamente ao framework de autenticação. Inclui os novos campos `senha` (armazenada com BCrypt) e `role` (um Enum `UserRole` para definir se é `CLIENTE` ou `GERENTE`).
-
-service.ContaServiceDomain: O serviço de domínio agora implementa uma verificação de posse de recurso. O novo método `validarProprietarioDaConta` é chamado no início de todas as operações de conta (sacar, depositar, extrato) para garantir que um usuário autenticado só possa modificar ou ver as contas que lhe pertencem.
-
-B. Camada de Aplicação (application)
-dto.ContaCorrenteUpdateRequestDTO: Novo DTO para a atualização parcial de uma conta corrente.
-
-service.ClienteService: Serviço de Aplicação. Agora injeta as configurações do banco (BancoConfigProperties e @Value)
-para usar os valores padrão ao criar contas. A lógica de criação foi centralizada no método privado
-criarInstanciaDeConta, e a busca de clientes foi centralizada em buscarClientePorIdOuFalhar, ambos aplicando o princípio
-DRY.
-
-service.AuthorizationService: Nova classe que implementa `UserDetailsService`. Sua única responsabilidade é carregar um `Cliente` (pelo CPF, que tratamos como username) e entregá-lo ao Spring Security.
-
-service.TokenService: Nova classe responsável por todo o ciclo de vida do JWT. Gera um token após o login bem-sucedido e valida o token em requisições subsequentes.
-
-C. Camada de Interface (interface_ui)
-controller.ContaController: Foi adicionado o novo endpoint PATCH /contas/corrente/{numeroConta} para permitir a
-atualização de limite e taxa.
-
-exception.GlobalExceptionHandler: Agora possui um ExceptionHandler específico para RecursoNaoEncontradoException,
-garantindo o retorno do status 404 Not Found. O tratamento da `AccessDeniedException` foi removido desta classe e centralizado no `CustomAccessDeniedHandler` para capturar *todos* os erros de acesso, incluindo os gerados pelos filtros do Spring Security.
-
-controller.AuthenticationController: Novo controller que expõe o endpoint público `POST /auth/login`. Ele recebe as credenciais, autentica o usuário e retorna o JWT gerado pelo `TokenService`.
-
-D. Camada de Configuração (config)
-config.BancoConfigProperties: Nova classe que mapeia e agrupa as propriedades de configuração do application.properties
-relacionadas aos padrões da conta corrente.
-
-SecurityConfig: A classe de configuração principal da segurança. Define o `PasswordEncoder`, o `AuthenticationManager` e as regras de autorização (`authorizeHttpRequests`) para cada endpoint.
-
-SecurityFilter: Um filtro que intercepta *todas* as requisições. Ele extrai o token JWT do cabeçalho `Authorization`, valida-o usando o `TokenService` e, se for válido, define o usuário no contexto de segurança para aquela requisição.
-
-CustomAccessDeniedHandler: Implementação personalizada que garante que qualquer erro `403 Forbidden` na aplicação (seja por regras de filtro ou lógica de serviço) retorne uma resposta JSON padronizada.
-
-4. Guia de Endpoints da API
-   Todas as requisições, exceto as marcadas como "PÚBLICO", exigem um cabeçalho de autenticação:
-   `Authorization: Bearer <SEU_TOKEN_JWT>`
-
-   Funcionalidade              Método HTTP / URL                       Permissão     Corpo (Exemplo JSON)
-   -------------------------    -----------------------------------     -----------   -------------------------------------------------
-   Autenticar Usuário           POST /auth/login                        PÚBLICO       { "cpf": ..., "senha": "..." }
-   Criar Novo Cliente           POST /clientes                          PÚBLICO       { "nome": "...", "cpf": ..., "senha": "...", ... }
-   Listar Clientes Ativos       GET /clientes                           GERENTE       N/A
-   Buscar Cliente por ID        GET /clientes/{id}                      GERENTE       N/A
-   Atualizar Cliente            PUT /clientes/{id}                      GERENTE       { "nome": "Novo Nome" }
-   Desativar Cliente            DELETE /clientes/{id}                   GERENTE       N/A
-   Abrir Nova Conta             POST /clientes/{clienteId}/contas       GERENTE       { "tipoConta": "Poupanca", ... }
-   Depositar                    POST /contas/{numeroConta}/depositar    CLIENTE       { "valor": "100.00" } (Apenas na própria conta)
-   Sacar                        POST /contas/{numeroConta}/sacar        CLIENTE       { "valor": "50.00" } (Apenas na própria conta)
-   Transferir                   POST /contas/{numContaOrigem}/transferir CLIENTE      { "numeroContaDestino": ..., ... } (Apenas da própria conta)
-   Consultar Extrato            GET /contas/{numeroConta}/extrato       CLIENTE       N/A (Apenas da própria conta)
-   Atualizar C. Corrente        PATCH /contas/corrente/{numeroConta}    CLIENTE       { "limite": 2000 } (Apenas na própria conta)
-
-5. Conclusão e Próximos Passos
-   A API em seu estado atual é uma aplicação robusta, funcional e segura, cobrindo os casos de uso essenciais de um sistema bancário. A implementação do Spring Security com JWT e controle de acesso baseado em papéis (RBAC) garante a correta segregação de funções (Gerente vs. Cliente) e a posse de dados (um cliente só pode ver suas próprias contas).
-
-   Próximos passos naturais na evolução do projeto seriam:
-   1.  **Testes Automatizados**: Implementação de uma suíte de testes unitários (JUnit/Mockito) para os serviços e testes de integração (com `@SpringBootTest`) para os controllers, cobrindo os cenários de segurança.
-   2.  **Paginação**: Adicionar paginação ao endpoint `GET /clientes` para otimizar o desempenho.
-   3.  **Dockerização**: Criar um `Dockerfile` para conteinerizar a aplicação, facilitando o deploy.
+**Próximos Passos Sugeridos:**
+1.  **Notificações em Tempo Real:** Implementar WebSockets ou Server-Sent Events (SSE) para notificar o cliente front-end assim que a operação assíncrona (IoT) for concluída com sucesso ou falha.
+2.  **Testes de Integração IoT:** Criar cenários de teste automatizados que simulem o comportamento do broker MQTT e dos dispositivos físicos.
+3.  **Dashboard Gerencial:** Desenvolver uma interface web para que gerentes possam visualizar métricas de operações, transações pendentes e gerenciar taxas de forma visual.
